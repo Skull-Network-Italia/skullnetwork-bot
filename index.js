@@ -1,8 +1,6 @@
 require('dotenv').config();
 const {
-    AuditLogEvent,
     Client,
-    EmbedBuilder,
     GatewayIntentBits
 } = require('discord.js');
 const cron = require('cron');
@@ -42,6 +40,8 @@ const client = new Client({
 });
 
 const moderationLogChannelId = process.env.MEMBER_LOG_CHANNEL_ID || process.env.LOG_CHANNEL_ID;
+const AUDIT_MEMBER_KICK = 20;
+const AUDIT_MEMBER_BAN_ADD = 22;
 
 async function sendMemberLogEmbed(guild, embed) {
     if (!moderationLogChannelId) return;
@@ -81,20 +81,21 @@ client.on('guildMemberAdd', welcome);
 
 client.on('guildMemberRemove', async member => {
     try {
-        const wasKicked = await isRecentModerationAction(member.guild, AuditLogEvent.MemberKick, member.id);
-        const wasBanned = await isRecentModerationAction(member.guild, AuditLogEvent.MemberBanAdd, member.id);
+        const wasKicked = await isRecentModerationAction(member.guild, AUDIT_MEMBER_KICK, member.id);
+        const wasBanned = await isRecentModerationAction(member.guild, AUDIT_MEMBER_BAN_ADD, member.id);
 
         if (wasBanned) return;
 
-        const embed = new EmbedBuilder()
-            .setColor(wasKicked ? 0xffa500 : 0xff0000)
-            .setTitle(wasKicked ? '👢 Utente espulso dal server' : '🚪 Utente uscito dal server')
-            .setDescription(`<@${member.id}> (**${member.user.tag}**)`)
-            .addFields(
+        const embed = {
+            color: wasKicked ? 0xffa500 : 0xff0000,
+            title: wasKicked ? '👢 Utente espulso dal server' : '🚪 Utente uscito dal server',
+            description: `<@${member.id}> (**${member.user.tag}**)`,
+            fields: [
                 { name: 'User ID', value: member.id, inline: true },
                 { name: 'Azione', value: wasKicked ? 'Espulsione (Kick)' : 'Uscita volontaria', inline: true }
-            )
-            .setTimestamp();
+            ],
+            timestamp: new Date().toISOString()
+        };
 
         await sendMemberLogEmbed(member.guild, embed);
     } catch (err) {
@@ -104,15 +105,16 @@ client.on('guildMemberRemove', async member => {
 
 client.on('guildBanAdd', async ban => {
     try {
-        const embed = new EmbedBuilder()
-            .setColor(0x8b0000)
-            .setTitle('🔨 Utente bannato')
-            .setDescription(`<@${ban.user.id}> (**${ban.user.tag}**)`)
-            .addFields(
+        const embed = {
+            color: 0x8b0000,
+            title: '🔨 Utente bannato',
+            description: `<@${ban.user.id}> (**${ban.user.tag}**)`,
+            fields: [
                 { name: 'User ID', value: ban.user.id, inline: true },
                 { name: 'Azione', value: 'Ban', inline: true }
-            )
-            .setTimestamp();
+            ],
+            timestamp: new Date().toISOString()
+        };
 
         await sendMemberLogEmbed(ban.guild, embed);
     } catch (err) {
