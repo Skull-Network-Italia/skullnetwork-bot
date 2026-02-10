@@ -1,5 +1,10 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits } = require('discord.js');
+const {
+    AuditLogEvent,
+    Client,
+    EmbedBuilder,
+    GatewayIntentBits
+} = require('discord.js');
 const cron = require('cron');
 const fs = require('fs');
 const path = require('path');
@@ -28,12 +33,35 @@ if (fs.existsSync(banFilePath)) {
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildModeration,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessageReactions
     ]
 });
+
+const moderationLogChannelId = process.env.MEMBER_LOG_CHANNEL_ID || process.env.LOG_CHANNEL_ID;
+
+async function sendMemberLogEmbed(guild, embed) {
+    if (!moderationLogChannelId) return;
+
+    const logChannel = guild.channels.cache.get(moderationLogChannelId)
+        || await guild.channels.fetch(moderationLogChannelId).catch(() => null);
+
+    if (!logChannel || !logChannel.isTextBased()) return;
+
+    await logChannel.send({ embeds: [embed] });
+}
+
+async function isRecentModerationAction(guild, eventType, userId) {
+    const auditLogs = await guild.fetchAuditLogs({ type: eventType, limit: 1 }).catch(() => null);
+    const entry = auditLogs?.entries.first();
+
+    if (!entry || entry.target?.id !== userId) return false;
+
+    return Date.now() - entry.createdTimestamp < 5000;
+}
 
 // === AVVIO BOT
 client.once('ready', async () => {
@@ -50,6 +78,47 @@ client.once('ready', async () => {
 
 // === BENVEUTO
 client.on('guildMemberAdd', welcome);
+
+client.on('guildMemberRemove', async member => {
+    try {
+        const wasKicked = await isRecentModerationAction(member.guild, AuditLogEvent.MemberKick, member.id);
+        const wasBanned = await isRecentModerationAction(member.guild, AuditLogEvent.MemberBanAdd, member.id);
+
+        if (wasBanned) return;
+
+        const embed = new EmbedBuilder()
+            .setColor(wasKicked ? 0xffa500 : 0xff0000)
+            .setTitle(wasKicked ? '👢 Utente espulso dal server' : '🚪 Utente uscito dal server')
+            .setDescription(`<@${member.id}> (**${member.user.tag}**)`)
+            .addFields(
+                { name: 'User ID', value: member.id, inline: true },
+                { name: 'Azione', value: wasKicked ? 'Espulsione (Kick)' : 'Uscita volontaria', inline: true }
+            )
+            .setTimestamp();
+
+        await sendMemberLogEmbed(member.guild, embed);
+    } catch (err) {
+        console.error('Errore log uscita/espulsione:', err);
+    }
+});
+
+client.on('guildBanAdd', async ban => {
+    try {
+        const embed = new EmbedBuilder()
+            .setColor(0x8b0000)
+            .setTitle('🔨 Utente bannato')
+            .setDescription(`<@${ban.user.id}> (**${ban.user.tag}**)`)
+            .addFields(
+                { name: 'User ID', value: ban.user.id, inline: true },
+                { name: 'Azione', value: 'Ban', inline: true }
+            )
+            .setTimestamp();
+
+        await sendMemberLogEmbed(ban.guild, embed);
+    } catch (err) {
+        console.error('Errore log ban:', err);
+    }
+});
 
 // === MESSAGGI
 client.on('messageCreate', async message => {
