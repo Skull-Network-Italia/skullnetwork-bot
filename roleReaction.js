@@ -80,6 +80,17 @@ Clicca per ricevere il ruolo:
         const member = await reaction.message.guild.members.fetch(user.id);
         await member.roles.remove(roleId).catch(console.error);
     });
+
+    // Quando un utente esce/è espulso, rimuove le sue reaction dal messaggio ruoli
+    client.on('guildMemberRemove', async member => {
+        const trackedReactions = message.reactions.cache.filter(reaction => rolesMap[reaction.emoji.name]);
+
+        for (const reaction of trackedReactions.values()) {
+            await reaction.users.remove(member.id).catch(err => {
+                console.error(`Errore rimozione reaction ${reaction.emoji.name} per ${member.id}:`, err);
+            });
+        }
+    });
 }
 
 module.exports = setupRoleReaction;
