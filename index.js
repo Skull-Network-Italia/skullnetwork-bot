@@ -1,8 +1,5 @@
 require('dotenv').config();
-const {
-    Client,
-    GatewayIntentBits
-} = require('discord.js');
+const { Client, GatewayIntentBits } = require('discord.js');
 const cron = require('cron');
 const fs = require('fs');
 const path = require('path');
@@ -13,6 +10,7 @@ const welcome = require('./welcome');
 const setupRoleReaction = require('./roleReaction');
 const { checkLiveStatus } = require('./twitchLiveChecker');
 const handleSocialCommand = require('./commands/social');
+const handleRulesDsCommand = require('./commands/rulesds');
 
 // === ⚠️ CARICAMENTO PATTERN LINK VIETATI
 const forbiddenPatterns = require('./forbiddenLinks.json').map(p => new RegExp(p, 'i'));
@@ -195,7 +193,11 @@ client.on('messageCreate', async message => {
 
     if (message.content === '!social') {
         return await handleSocialCommand(client, message);
-    }    
+    }
+
+    if (message.content === '!rulesds') {
+        return await handleRulesDsCommand(message);
+    }
 });
 
 // === LOGIN
