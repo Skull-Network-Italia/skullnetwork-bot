@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits } = require('discord.js');
+const { Client, GatewayIntentBits, ChannelType, PermissionFlagsBits } = require('discord.js');
 const cron = require('cron');
 const fs = require('fs');
 const path = require('path');
@@ -33,13 +33,18 @@ const client = new Client({
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.GuildMessageReactions
+        GatewayIntentBits.GuildMessageReactions,
+        GatewayIntentBits.GuildVoiceStates
     ]
 });
 
 const moderationLogChannelId = process.env.MEMBER_LOG_CHANNEL_ID || process.env.LOG_CHANNEL_ID;
 const AUDIT_MEMBER_KICK = 20;
 const AUDIT_MEMBER_BAN_ADD = 22;
+const privateVoiceChannels = new Map(); // channelId -> ownerId
+const privateVoiceCleanupTimeouts = new Map(); // channelId -> timeout
+const PRIVATE_VOICE_CATEGORY_ID = '1477024558295941292';
+const PRIVATE_VOICE_INACTIVITY_MS = 5 * 60 * 1000;
 
 async function sendMemberLogEmbed(guild, embed) {
     if (!moderationLogChannelId) {
@@ -57,6 +62,95 @@ async function sendMemberLogEmbed(guild, embed) {
     }
 
     await logChannel.send({ embeds: [embed] });
+}
+
+function clearPrivateVoiceCleanup(channelId) {
+    const timeout = privateVoiceCleanupTimeouts.get(channelId);
+
+    if (timeout) {
+        clearTimeout(timeout);
+        privateVoiceCleanupTimeouts.delete(channelId);
+    }
+}
+
+function schedulePrivateVoiceCleanup(channel) {
+    clearPrivateVoiceCleanup(channel.id);
+
+    const timeout = setTimeout(async () => {
+        const freshChannel = channel.guild.channels.cache.get(channel.id)
+            || await channel.guild.channels.fetch(channel.id).catch(() => null);
+
+        if (!freshChannel || freshChannel.type !== ChannelType.GuildVoice) {
+            privateVoiceChannels.delete(channel.id);
+            clearPrivateVoiceCleanup(channel.id);
+            return;
+        }
+
+        if (freshChannel.members.size > 0) return;
+
+        await freshChannel.delete('Canale vocale privato inattivo per più di 5 minuti.').catch(() => null);
+        privateVoiceChannels.delete(channel.id);
+        clearPrivateVoiceCleanup(channel.id);
+    }, PRIVATE_VOICE_INACTIVITY_MS);
+
+    privateVoiceCleanupTimeouts.set(channel.id, timeout);
+}
+async function createPrivateVoiceChannel(message) {
+    const ownerId = message.author.id;
+
+    const existingChannelId = [...privateVoiceChannels.entries()]
+        .find(([, channelOwnerId]) => channelOwnerId === ownerId)?.[0];
+
+    if (existingChannelId) {
+        const existingChannel = message.guild.channels.cache.get(existingChannelId)
+            || await message.guild.channels.fetch(existingChannelId).catch(() => null);
+
+        if (existingChannel) {
+            return message.reply(`Hai già un canale vocale privato: ${existingChannel}.`);
+        }
+
+        privateVoiceChannels.delete(existingChannelId);
+    }
+
+    const channelName = `🔒 Privato di ${message.member.displayName}`;
+    const category = message.guild.channels.cache.get(PRIVATE_VOICE_CATEGORY_ID)
+        || await message.guild.channels.fetch(PRIVATE_VOICE_CATEGORY_ID).catch(() => null);
+
+    if (!category || category.type !== ChannelType.GuildCategory) {
+        return message.reply('❌ Categoria dei vocali privati non trovata. Contatta un admin.');
+    }
+
+    const channel = await message.guild.channels.create({
+        name: channelName,
+        type: ChannelType.GuildVoice,
+        parent: PRIVATE_VOICE_CATEGORY_ID,
+        permissionOverwrites: [
+            {
+                id: message.guild.roles.everyone,
+                allow: [PermissionFlagsBits.ViewChannel],
+                deny: [PermissionFlagsBits.Connect]
+            },
+            {
+                id: ownerId,
+                allow: [
+                    PermissionFlagsBits.ViewChannel,
+                    PermissionFlagsBits.Connect,
+                    PermissionFlagsBits.Speak,
+                    PermissionFlagsBits.Stream,
+                    PermissionFlagsBits.MoveMembers,
+                    PermissionFlagsBits.ManageChannels
+                ]
+            }
+        ]
+    });
+
+    privateVoiceChannels.set(channel.id, ownerId);
+    schedulePrivateVoiceCleanup(channel);
+
+    await message.reply(
+        `✅ Ho creato ${channel}. È visibile a tutti ma può entrarci solo il creatore. `
+        + 'Puoi spostare utenti nel canale e, una volta dentro, otterranno accesso a voce e condivisione schermo.'
+    );
 }
 
 async function isRecentModerationAction(guild, eventType, userId) {
@@ -132,6 +226,50 @@ client.on('guildBanAdd', async ban => {
     }
 });
 
+client.on('voiceStateUpdate', async (oldState, newState) => {
+    const oldChannel = oldState.channel;
+    const destinationChannel = newState.channel;
+
+    if (oldChannel && privateVoiceChannels.has(oldChannel.id) && oldChannel.members.size === 0) {
+        schedulePrivateVoiceCleanup(oldChannel);
+    }
+
+    if (!destinationChannel) return;
+
+    if (privateVoiceChannels.has(destinationChannel.id)) {
+        clearPrivateVoiceCleanup(destinationChannel.id);
+    }
+
+    const ownerId = privateVoiceChannels.get(destinationChannel.id);
+    if (!ownerId) return;
+
+    if (newState.id === ownerId) return;
+
+    if (oldState.channelId === destinationChannel.id) return;
+
+    const wasMoved = oldState.channelId && oldState.channelId !== destinationChannel.id;
+    if (!wasMoved) {
+        await newState.disconnect('Canale vocale privato: ingresso consentito solo se spostati dal proprietario.').catch(() => null);
+        return;
+    }
+
+    await destinationChannel.permissionOverwrites.edit(newState.id, {
+        ViewChannel: true,
+        Connect: true,
+        Speak: true,
+        Stream: true
+    }).catch(err => {
+        console.error('Errore aggiornamento permessi utente nel canale privato:', err);
+    });
+});
+
+client.on('channelDelete', channel => {
+    if (!privateVoiceChannels.has(channel.id)) return;
+
+    privateVoiceChannels.delete(channel.id);
+    clearPrivateVoiceCleanup(channel.id);
+});
+
 // === MESSAGGI
 client.on('messageCreate', async message => {
     if (message.author.bot || !message.guild) return;
@@ -197,6 +335,10 @@ client.on('messageCreate', async message => {
 
     if (message.content === '!rulesds') {
         return await handleRulesDsCommand(message);
+    }
+
+    if (message.content === '!creavocale') {
+        return await createPrivateVoiceChannel(message);
     }
 });
 
