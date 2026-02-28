@@ -1,26 +1,22 @@
 const fs = require('fs');
-const path = require('path');
 const { EmbedBuilder } = require('discord.js');
 
-const rolesMap = {
-    '🚛': '',
-    '🚜': '',
-    '⚓': '',
-    '🚗': '',
-    '✈️': '',
-    '🎮': '',
-    '🛠️': '',
-    '💀': ''
-};
-
-const dataPath = path.join(__dirname, 'reactionMessage.json');
+const config = require('../config/env');
 
 async function setupRoleReaction(client) {
-    const channelId = ''; // <-- Sostituisci con il tuo channel ID
+    const channelId = config.roleReactionChannelId;
+    const rolesMap = Object.fromEntries(
+        Object.entries(config.roleByEmoji).filter(([, roleId]) => Boolean(roleId))
+    );
+
+    if (!channelId || Object.keys(rolesMap).length === 0) {
+        console.warn('⚠️ Role reaction non configurata: ROLE_REACTION_CHANNEL_ID o ruoli mancanti nel .env.');
+        return;
+    }
 
     let savedData = {};
-    if (fs.existsSync(dataPath)) {
-        savedData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+    if (fs.existsSync(config.paths.reactionMessageFile)) {
+        savedData = JSON.parse(fs.readFileSync(config.paths.reactionMessageFile, 'utf8'));
     }
 
     const channel = await client.channels.fetch(channelId);
@@ -30,7 +26,7 @@ async function setupRoleReaction(client) {
         try {
             message = await channel.messages.fetch(savedData.messageId);
             console.log('✅ Messaggio role reaction recuperato.');
-        } catch (err) {
+        } catch {
             console.warn('⚠️ Impossibile recuperare il messaggio, ne creo uno nuovo.');
         }
     }
@@ -52,18 +48,14 @@ Clicca per ricevere il ruolo:
             .setColor(0x2F3136);
 
         message = await channel.send({ embeds: [embed] });
+            fs.writeFileSync(config.paths.reactionMessageFile, JSON.stringify({ messageId: message.id }, null, 2));
 
-        // Salva il nuovo message ID
-        fs.writeFileSync(dataPath, JSON.stringify({ messageId: message.id }, null, 2));
-
-        // Aggiungi le reazioni
         for (const emoji of Object.keys(rolesMap)) {
             await message.react(emoji);
         }
         console.log('✅ Nuovo messaggio role reaction creato e salvato.');
     }
 
-    // Gestione assegnazione ruoli
     client.on('messageReactionAdd', async (reaction, user) => {
         if (reaction.message.id !== message.id || user.bot) return;
         const roleId = rolesMap[reaction.emoji.name];
@@ -72,7 +64,6 @@ Clicca per ricevere il ruolo:
         await member.roles.add(roleId).catch(console.error);
     });
 
-    // Gestione rimozione ruoli
     client.on('messageReactionRemove', async (reaction, user) => {
         if (reaction.message.id !== message.id || user.bot) return;
         const roleId = rolesMap[reaction.emoji.name];
@@ -81,7 +72,6 @@ Clicca per ricevere il ruolo:
         await member.roles.remove(roleId).catch(console.error);
     });
 
-    // Quando un utente esce/è espulso, rimuove le sue reaction dal messaggio ruoli
     client.on('guildMemberRemove', async member => {
         const trackedReactions = message.reactions.cache.filter(reaction => rolesMap[reaction.emoji.name]);
 
