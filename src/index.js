@@ -137,20 +137,31 @@ async function flushVoiceSession(client, member, timestamp = Date.now()) {
 }
 
 async function handleInactivitySweep(client) {
-    const now = Date.now();
-
-    for (const guild of client.guilds.cache.values()) {
-        for (const [userId, profile] of Object.entries(rankData.users)) {
-            const member = guild.members.cache.get(userId)
-                || await guild.members.fetch(userId).catch(() => null);
-            if (!member || member.user.bot) continue;
-            if ((now - profile.lastActivityAt) < config.rank.inactivityMs) continue;
-
-            const penaltySteps = Math.floor((now - profile.lastActivityAt) / config.rank.inactivityMs);
-            profile.lastActivityAt += penaltySteps * config.rank.inactivityMs;
-            persistRankData();
-            await adjustLevel(client, guild, userId, -penaltySteps, `inattività oltre 24 ore (x${penaltySteps})`);
+    try {
+      const now = Date.now();
+      const users = (rankData && typeof rankData.users === 'object' && rankData.users) ? rankData.users : {};
+      const inactivityMs = (config && config.rank && typeof config.rank.inactivityMs === 'number') ? config.rank.inactivityMs : 24 * 60 * 60 * 1000;
+  
+      for (const guild of client.guilds.cache.values()) {
+        for (const [userId, profileRaw] of Object.entries(users)) {
+          const profile = profileRaw || getOrCreateRankProfile(userId);
+          if (typeof profile.lastActivityAt !== 'number') profile.lastActivityAt = Date.now();
+  
+          const member = guild.members.cache.get(userId)
+            || await guild.members.fetch(userId).catch(() => null);
+          if (!member || member.user?.bot) continue;
+  
+          const elapsed = now - profile.lastActivityAt;
+          if (elapsed < inactivityMs) continue;
+  
+          const penaltySteps = Math.floor(elapsed / inactivityMs);
+          profile.lastActivityAt += penaltySteps * inactivityMs;
+          persistRankData();
+          await adjustLevel(client, guild, userId, -penaltySteps, `inattività oltre 24 ore (x${penaltySteps})`);
         }
+      }
+    } catch (err) {
+      console.error('Errore controllo inattività rank:', err);
     }
 }
 
