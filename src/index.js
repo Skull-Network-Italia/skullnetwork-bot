@@ -21,11 +21,16 @@ if (fs.existsSync(config.paths.bansFile)) {
 let rankData = { users: {} };
 if (fs.existsSync(config.paths.rankDataFile)) {
     try {
-        rankData = JSON.parse(fs.readFileSync(config.paths.rankDataFile, 'utf8'));
+        const parsed = JSON.parse(fs.readFileSync(config.paths.rankDataFile, 'utf8'));
+        // fallback sicuro se il file non contiene la struttura attesa
+        rankData = (parsed && typeof parsed === 'object') ? parsed : { users: {} };
     } catch (error) {
         console.error('Errore lettura rankData.json, uso struttura vuota.', error);
     }
 }
+// garantire sempre la presenza di users come oggetto
+if (!rankData || typeof rankData !== 'object') rankData = { users: {} };
+if (!rankData.users || typeof rankData.users !== 'object') rankData.users = {};
 
 const voiceSessionTracker = new Map();
 const messageSpamTracker = new Map();
@@ -41,6 +46,10 @@ function persistRankData() {
 }
 
 function getOrCreateRankProfile(userId) {
+    // difensivo: assicurarsi che rankData e rankData.users esistano
+    if (!rankData || typeof rankData !== 'object') rankData = { users: {} };
+    if (!rankData.users || typeof rankData.users !== 'object') rankData.users = {};
+
     if (!rankData.users[userId]) {
         rankData.users[userId] = { level: 0, voiceMs: 0, messageCount: 0, lastActivityAt: Date.now() };
     }
@@ -410,65 +419,69 @@ client.on('channelDelete', channel => {
 client.on('messageCreate', async message => {
     if (message.author.bot || !message.guild) return;
 
-    const profile = getOrCreateRankProfile(message.author.id);
-    profile.lastActivityAt = Date.now();
-    persistRankData();
+    try {
+        const profile = getOrCreateRankProfile(message.author.id);
+        profile.lastActivityAt = Date.now();
+        persistRankData();
 
-    if (forbiddenPatterns.some(pattern => pattern.test(message.content))) {
-        try {
-            await message.delete();
-            const userId = message.author.id;
-            userViolations[userId] = (userViolations[userId] || 0) + 1;
+        if (forbiddenPatterns.some(pattern => pattern.test(message.content))) {
+            try {
+                await message.delete();
+                const userId = message.author.id;
+                userViolations[userId] = (userViolations[userId] || 0) + 1;
 
-            const logChannel = client.channels.cache.get(config.logChannelId);
-            if (logChannel) {
-                logChannel.send(`⚠️ Link vietato inviato da <@${userId}> (${message.author.tag}) - Tentativo ${userViolations[userId]}/3\nContenuto: \`${message.content}\``);
+                const logChannel = client.channels.cache.get(config.logChannelId);
+                if (logChannel) {
+                    logChannel.send(`⚠️ Link vietato inviato da <@${userId}> (${message.author.tag}) - Tentativo ${userViolations[userId]}/3\nContenuto: \`${message.content}\``);
+                }
+
+                await message.channel.send({
+                    content: `🚫 <@${userId}>, non è consentito pubblicare link non autorizzati. Tentativo ${userViolations[userId]}/3.`,
+                    allowedMentions: { users: [userId] }
+                });
+
+                await adjustLevel(client, message.guild, userId, -1, 'violazione regole rilevata dal bot');
+
+                if (userViolations[userId] >= 3 && !bans[userId]) {
+                    await message.guild.members.ban(userId, { reason: 'Link non autorizzati (3 violazioni)' });
+                    bans[userId] = { tag: message.author.tag, timestamp: new Date().toISOString(), reason: 'Link non autorizzati (3 violazioni)' };
+                    fs.writeFileSync(config.paths.bansFile, JSON.stringify(bans, null, 2));
+                    if (logChannel) logChannel.send(`🔨 <@${userId}> è stato **bannato permanentemente** per spam di link non autorizzati.`);
+                    delete userViolations[userId];
+                }
+            } catch (err) {
+                console.error('Errore gestione link vietato:', err);
             }
-
-            await message.channel.send({
-                content: `🚫 <@${userId}>, non è consentito pubblicare link non autorizzati. Tentativo ${userViolations[userId]}/3.`,
-                allowedMentions: { users: [userId] }
-            });
-
-            await adjustLevel(client, message.guild, userId, -1, 'violazione regole rilevata dal bot');
-
-            if (userViolations[userId] >= 3 && !bans[userId]) {
-                await message.guild.members.ban(userId, { reason: 'Link non autorizzati (3 violazioni)' });
-                bans[userId] = { tag: message.author.tag, timestamp: new Date().toISOString(), reason: 'Link non autorizzati (3 violazioni)' };
-                fs.writeFileSync(config.paths.bansFile, JSON.stringify(bans, null, 2));
-                if (logChannel) logChannel.send(`🔨 <@${userId}> è stato **bannato permanentemente** per spam di link non autorizzati.`);
-                delete userViolations[userId];
-            }
-        } catch (err) {
-            console.error('Errore gestione link vietato:', err);
+            return;
         }
-        return;
-    }
 
-    if (isMessageSpam(message)) return;
+        if (isMessageSpam(message)) return;
 
-    profile.messageCount += 1;
-    const gainedLevelsFromMessages = Math.floor(profile.messageCount / config.rank.levelUpMessages);
-    if (gainedLevelsFromMessages > 0) {
-        profile.messageCount -= gainedLevelsFromMessages * config.rank.levelUpMessages;
-        await adjustLevel(client, message.guild, message.author.id, gainedLevelsFromMessages, `+1 livello ogni 1000 messaggi (x${gainedLevelsFromMessages})`);
-    }
-    persistRankData();
+        profile.messageCount += 1;
+        const gainedLevelsFromMessages = Math.floor(profile.messageCount / config.rank.levelUpMessages);
+        if (gainedLevelsFromMessages > 0) {
+            profile.messageCount -= gainedLevelsFromMessages * config.rank.levelUpMessages;
+            await adjustLevel(client, message.guild, message.author.id, gainedLevelsFromMessages, `+1 livello ogni 1000 messaggi (x${gainedLevelsFromMessages})`);
+        }
+        persistRankData();
 
-    if (message.content === '!ciao') {
-        message.reply('Ciao e benvenuto su Skull Network Italia! 💀');
-    }
+        if (message.content === '!ciao') {
+            message.reply('Ciao e benvenuto su Skull Network Italia! 💀');
+        }
 
-    if (message.content === '!social') {
-        return handleSocialCommand(client, message);
-    }
+        if (message.content === '!social') {
+            return handleSocialCommand(client, message);
+        }
 
-    if (message.content === '!rulesds') {
-        return handleRulesDsCommand(message);
-    }
+        if (message.content === '!rulesds') {
+            return handleRulesDsCommand(message);
+        }
 
-    if (message.content === '!creavocale') {
-        return createPrivateVoiceChannel(message);
+        if (message.content === '!creavocale') {
+            return createPrivateVoiceChannel(message);
+        }
+    } catch (err) {
+        console.error('Errore gestione messageCreate:', err);
     }
 });
 
