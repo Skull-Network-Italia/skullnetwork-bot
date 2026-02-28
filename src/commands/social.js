@@ -1,7 +1,8 @@
 const { EmbedBuilder } = require('discord.js');
+const config = require('../config/env');
 
 module.exports = async function handleSocialCommand(client, message) {
-    const channel = client.channels.cache.get(process.env.SOCIAL_CHANNEL_ID);
+    const channel = client.channels.cache.get(config.socialChannelId);
     if (!channel) {
         return message.reply('❌ Canale social non trovato. Contatta un admin.');
     }
@@ -9,7 +10,7 @@ module.exports = async function handleSocialCommand(client, message) {
     const embed = new EmbedBuilder()
         .setTitle('🌐 Skull Network Italia - Social & Canali ufficiali')
         .setColor(0x2f3136)
-        .setThumbnail('https://i.imgur.com/f2LxUyx.png') // Immagine alternativa funzionante
+        .setThumbnail('https://i.imgur.com/f2LxUyx.png')
         .addFields(
             { name: '📌 Discord', value: '[Unisciti al nostro server](https://discord.gg/Jrm2Z26ad3)', inline: false },
             { name: '📘 Facebook', value: '[Pagina Facebook](https://www.facebook.com/profile.php?id=61578015786714)', inline: false },
@@ -24,5 +25,5 @@ module.exports = async function handleSocialCommand(client, message) {
         .setTimestamp();
 
     await channel.send({ embeds: [embed] });
-    await message.reply({ content: '✅ Social pubblicati nel canale dedicato!', ephemeral: true });
+    await message.reply({ content: '✅ Social pubblicati nel canale dedicato!' });
 };

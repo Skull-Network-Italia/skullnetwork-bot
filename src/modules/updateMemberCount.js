@@ -1,9 +1,11 @@
+const config = require('../config/env');
+
 async function updateMemberCount(client) {
     try {
-        const guild = client.guilds.cache.get(process.env.GUILD_ID);
+        const guild = client.guilds.cache.get(config.guildId);
         if (!guild) return;
 
-        const channel = guild.channels.cache.get(process.env.CHANNEL_ID);
+        const channel = guild.channels.cache.get(config.memberCountChannelId);
         if (!channel) return;
 
         // membri totali (dato ufficiale Discord)
@@ -17,7 +19,7 @@ async function updateMemberCount(client) {
         await channel.setName(`👥 Membri: ${humanCount}`);
         console.log(`✅ Conteggio membri umani aggiornato: ${humanCount}`);
     } catch (error) {
-        console.error('❌ Errore nell\'aggiornamento del member count:', error);
+        console.error("❌ Errore nell'aggiornamento del member count:", error);
     }
 }
 

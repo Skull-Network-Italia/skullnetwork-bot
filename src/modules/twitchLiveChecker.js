@@ -1,31 +1,28 @@
 const axios = require('axios');
 const fs = require('fs');
-const path = require('path');
+const config = require('../config/env');
 
 let accessToken = '';
-const cacheFile = path.join(__dirname, 'twitchLiveCache.json');
 
-// Funzione per caricare la cache da file
 function loadCache() {
     try {
-        const data = fs.readFileSync(cacheFile, 'utf8');
+        const data = fs.readFileSync(config.paths.twitchLiveCacheFile, 'utf8');
         return JSON.parse(data);
     } catch {
         return [];
     }
 }
 
-// Funzione per salvare la cache su file
 function saveCache(liveList) {
-    fs.writeFileSync(cacheFile, JSON.stringify(liveList, null, 2));
+    fs.writeFileSync(config.paths.twitchLiveCacheFile, JSON.stringify(liveList, null, 2));
 }
 
 // Recupera token da Twitch
 async function getAccessToken() {
     const res = await axios.post('https://id.twitch.tv/oauth2/token', null, {
         params: {
-            client_id: process.env.TWITCH_CLIENT_ID,
-            client_secret: process.env.TWITCH_CLIENT_SECRET,
+            client_id: config.twitch.clientId,
+            client_secret: config.twitch.clientSecret,
             grant_type: 'client_credentials'
         }
     });
@@ -34,19 +31,19 @@ async function getAccessToken() {
 
 // Controlla lo stato live e invia embed se necessario
 async function checkLiveStatus(client) {
+    if (!config.twitch.clientId || !config.twitch.clientSecret || !config.twitch.discordChannelId) return;
+    if (config.twitch.streamers.length === 0) return;
     if (!accessToken) await getAccessToken();
 
-    const streamers = process.env.TWITCH_STREAMERS.split(',');
-    const channelId = process.env.TWITCH_DISCORD_CHANNEL;
-    const discordChannel = await client.channels.fetch(channelId);
+    const discordChannel = await client.channels.fetch(config.twitch.discordChannelId);
     let activeStreams = loadCache();
 
-    for (const streamer of streamers) {
+    for (const streamer of config.twitch.streamers) {
         try {
-            const res = await axios.get(`https://api.twitch.tv/helix/streams`, {
+            const res = await axios.get('https://api.twitch.tv/helix/streams', {
                 headers: {
-                    'Client-ID': process.env.TWITCH_CLIENT_ID,
-                    'Authorization': `Bearer ${accessToken}`
+                    'Client-ID': config.twitch.clientId,
+                    Authorization: `Bearer ${accessToken}`
                 },
                 params: { user_login: streamer }
             });
