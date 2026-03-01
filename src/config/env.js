@@ -19,6 +19,7 @@ module.exports = {
     privateVoiceCategoryId: process.env.PRIVATE_VOICE_CATEGORY_ID,
     privateVoiceInactivityMs: toInt(process.env.PRIVATE_VOICE_INACTIVITY_MS, 5 * 60 * 1000),
     roleReactionChannelId: process.env.ROLE_REACTION_CHANNEL_ID,
+    dailyGreetingChannelId: process.env.DAILY_GREETING_CHANNEL_ID,
     roleByEmoji: {
         '🚛': process.env.ROLE_ETS_ID,
         '🚜': process.env.ROLE_FS22_ID,
