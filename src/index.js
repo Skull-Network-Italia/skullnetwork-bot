@@ -38,8 +38,22 @@ const duplicateMessageTracker = new Map();
 
 const AUDIT_MEMBER_KICK = 20;
 const AUDIT_MEMBER_BAN_ADD = 22;
+const GOOD_MORNING_MESSAGE = 'La Skull Network Italia vi da il buongiorno e vi invita a prendere il vostro teschio dal comodino e ad offrirgli un buon caffè';
+const GOOD_NIGHT_MESSAGE = 'La Skull Network Italia vi augura una buona notte riponete i vostri teschi nel comodino';
 const privateVoiceChannels = new Map();
 const privateVoiceCleanupTimeouts = new Map();
+
+async function sendDailyChannelMessage(client, messageText) {
+    const channel = client.channels.cache.get(config.dailyGreetingChannelId)
+        || await client.channels.fetch(config.dailyGreetingChannelId).catch(() => null);
+
+    if (!channel || !channel.isTextBased()) {
+        console.error(`Canale non trovato o non testuale per messaggio programmato: ${config.dailyGreetingChannelId}`);
+        return;
+    }
+
+    await channel.send(messageText);
+}
 
 function persistRankData() {
     fs.writeFileSync(config.paths.rankDataFile, JSON.stringify(rankData, null, 2));
@@ -293,6 +307,29 @@ client.once('clientReady', async () => {
     setInterval(() => {
         handleInactivitySweep(client).catch(error => console.error('Errore controllo inattività rank:', error));
     }, 60 * 1000);
+
+    if (!config.dailyGreetingChannelId) {
+        console.error('DAILY_GREETING_CHANNEL_ID mancante nel file .env: messaggi programmati disattivati.');
+    } else {
+        const goodMorningJob = new cron.CronJob(
+        '30 7 * * *',
+        () => sendDailyChannelMessage(client, GOOD_MORNING_MESSAGE).catch(error => console.error('Errore invio buongiorno programmato:', error)),
+        null,
+        true,
+        'Europe/Rome'
+    );
+        goodMorningJob.start();
+
+        const goodNightJob = new cron.CronJob(
+        '0 23 * * *',
+        () => sendDailyChannelMessage(client, GOOD_NIGHT_MESSAGE).catch(error => console.error('Errore invio buonanotte programmata:', error)),
+        null,
+        true,
+        'Europe/Rome'
+    );
+        goodNightJob.start();
+
+    }
 
     await setupRoleReaction(client);
 });
