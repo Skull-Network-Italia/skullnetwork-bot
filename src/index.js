@@ -244,6 +244,7 @@ function schedulePrivateVoiceCleanup(channel) {
 
 async function createPrivateVoiceChannel(message) {
     const ownerId = message.author.id;
+    const guildOwnerId = message.guild.ownerId;
 
     const existingChannelId = [...privateVoiceChannels.entries()].find(([, channelOwnerId]) => channelOwnerId === ownerId)?.[0];
     if (existingChannelId) {
@@ -272,6 +273,17 @@ async function createPrivateVoiceChannel(message) {
             { id: message.guild.roles.everyone, allow: [PermissionFlagsBits.ViewChannel], deny: [PermissionFlagsBits.Connect] },
             {
                 id: ownerId,
+                allow: [
+                    PermissionFlagsBits.ViewChannel,
+                    PermissionFlagsBits.Connect,
+                    PermissionFlagsBits.Speak,
+                    PermissionFlagsBits.Stream,
+                    PermissionFlagsBits.MoveMembers,
+                    PermissionFlagsBits.ManageChannels
+                ]
+            },
+            {
+                id: guildOwnerId,
                 allow: [
                     PermissionFlagsBits.ViewChannel,
                     PermissionFlagsBits.Connect,
@@ -431,20 +443,13 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     }
 
     const ownerId = privateVoiceChannels.get(destinationChannel.id);
-    if (!ownerId || newState.id === ownerId || oldState.channelId === destinationChannel.id) return;
+    if (!ownerId || oldState.channelId === destinationChannel.id) return;
 
-    const wasMoved = oldState.channelId && oldState.channelId !== destinationChannel.id;
-    if (!wasMoved) {
-        await newState.disconnect('Canale vocale privato: ingresso consentito solo se spostati dal proprietario.').catch(() => null);
-        return;
-    }
+    const guildOwnerId = destinationChannel.guild.ownerId;
+    const isAllowedUser = newState.id === ownerId || newState.id === guildOwnerId;
+    if (isAllowedUser) return;
 
-    await destinationChannel.permissionOverwrites.edit(newState.id, {
-        ViewChannel: true,
-        Connect: true,
-        Speak: true,
-        Stream: true
-    }).catch(err => console.error('Errore aggiornamento permessi utente nel canale privato:', err));
+    await newState.disconnect('Canale vocale privato: accesso consentito solo al proprietario del canale e al proprietario del server.').catch(() => null);
 });
 
 client.on('channelDelete', channel => {
