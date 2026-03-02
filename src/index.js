@@ -219,6 +219,59 @@ function clearPrivateVoiceCleanup(channelId) {
     }
 }
 
+function isManagedPrivateVoiceChannel(channel) {
+    return Boolean(
+        channel
+        && channel.type === ChannelType.GuildVoice
+        && channel.parentId === config.privateVoiceCategoryId
+    );
+}
+
+function inferPrivateVoiceOwnerId(channel) {
+    if (!channel || !channel.permissionOverwrites) return null;
+
+    const guildOwnerId = channel.guild.ownerId;
+    const ownerOverwrite = channel.permissionOverwrites.cache.find(overwrite => {
+        if (overwrite.type !== 1) return false;
+        if (overwrite.id === guildOwnerId) return false;
+        return overwrite.allow.has(PermissionFlagsBits.ManageChannels) && overwrite.allow.has(PermissionFlagsBits.Connect);
+    });
+
+    return ownerOverwrite?.id || null;
+}
+
+function getPrivateVoiceOwnerId(channel) {
+    const trackedOwnerId = privateVoiceChannels.get(channel.id);
+    if (trackedOwnerId) return trackedOwnerId;
+
+    const inferredOwnerId = inferPrivateVoiceOwnerId(channel);
+    if (inferredOwnerId) {
+        privateVoiceChannels.set(channel.id, inferredOwnerId);
+    }
+
+    return inferredOwnerId;
+}
+
+async function bootstrapPrivateVoiceChannels(client) {
+    for (const guild of client.guilds.cache.values()) {
+        const channels = guild.channels.cache.size > 0
+            ? guild.channels.cache
+            : await guild.channels.fetch().catch(() => null);
+
+        if (!channels) continue;
+
+        for (const channel of channels.values()) {
+            if (!isManagedPrivateVoiceChannel(channel)) continue;
+
+            getPrivateVoiceOwnerId(channel);
+
+            if (channel.members.size === 0) {
+                schedulePrivateVoiceCleanup(channel);
+            }
+        }
+    }
+}
+
 function schedulePrivateVoiceCleanup(channel) {
     clearPrivateVoiceCleanup(channel.id);
 
@@ -344,6 +397,7 @@ client.once('clientReady', async () => {
     }
 
     await setupRoleReaction(client);
+    await bootstrapPrivateVoiceChannels(client);
 });
 
 client.on('guildMemberAdd', welcome);
@@ -417,7 +471,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         }
     }
 
-    if (oldChannel && privateVoiceChannels.has(oldChannel.id) && oldChannel.members.size === 0) {
+    if (isManagedPrivateVoiceChannel(oldChannel) && oldState.channelId !== newState.channelId) {
         schedulePrivateVoiceCleanup(oldChannel);
     }
 
@@ -438,11 +492,11 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         voiceSessionTracker.delete(member.id);
     }
 
-    if (privateVoiceChannels.has(destinationChannel.id)) {
+    if (isManagedPrivateVoiceChannel(destinationChannel)) {
         clearPrivateVoiceCleanup(destinationChannel.id);
     }
 
-    const ownerId = privateVoiceChannels.get(destinationChannel.id);
+    const ownerId = getPrivateVoiceOwnerId(destinationChannel);
     if (!ownerId || oldState.channelId === destinationChannel.id) return;
 
     const guildOwnerId = destinationChannel.guild.ownerId;
