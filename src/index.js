@@ -38,6 +38,7 @@ const duplicateMessageTracker = new Map();
 
 const AUDIT_MEMBER_KICK = 20;
 const AUDIT_MEMBER_BAN_ADD = 22;
+const AUDIT_MEMBER_MOVE = 26;
 const GOOD_MORNING_MESSAGE = 'La Skull Network Italia vi da il buongiorno e vi invita a prendere il vostro teschio dal comodino e ad offrirgli un buon caffè';
 const GOOD_NIGHT_MESSAGE = 'La Skull Network Italia vi augura una buona notte riponete i vostri teschi nel comodino';
 const privateVoiceChannels = new Map();
@@ -392,7 +393,7 @@ async function createPrivateVoiceChannel(message) {
 
     privateVoiceChannels.set(channel.id, ownerId);
     schedulePrivateVoiceCleanup(channel);
-    await message.reply(`✅ Ho creato ${channel}.`);
+    await message.reply(`✅ Ho creato ${channel}. È visibile a tutti ma può entrarci solo il creatore. Puoi spostare utenti nel canale e, una volta dentro, otterranno accesso a voce e condivisione schermo.` );
 }
 
 async function isRecentModerationAction(guild, eventType, userId) {
@@ -400,6 +401,23 @@ async function isRecentModerationAction(guild, eventType, userId) {
     const entry = auditLogs?.entries.first();
     if (!entry || entry.target?.id !== userId) return false;
     return Date.now() - entry.createdTimestamp < 5000;
+}
+
+async function wasMovedByAllowedUser(guild, movedUserId, allowedUserIds) {
+    const auditLogs = await guild.fetchAuditLogs({ type: AUDIT_MEMBER_MOVE, limit: 6 }).catch(() => null);
+    // null = non verificabile (permessi mancanti o audit log non disponibile)
+    if (!auditLogs) return null;
+
+    const now = Date.now();
+    for (const entry of auditLogs.entries.values()) {
+        const isRecent = now - entry.createdTimestamp < 8000;
+        if (!isRecent) continue;
+        if (entry.target?.id !== movedUserId) continue;
+        if (!allowedUserIds.has(entry.executor?.id)) continue;
+        return true;
+    }
+
+    return false;
 }
 
 client.once('clientReady', async () => {
@@ -523,6 +541,13 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 
     if (isManagedPrivateVoiceChannel(oldChannel) && oldState.channelId !== newState.channelId) {
         schedulePrivateVoiceCleanup(oldChannel);
+
+        const previousOwnerId = getPrivateVoiceOwnerId(oldChannel);
+        const previousGuildOwnerId = oldChannel.guild.ownerId;
+        const shouldCleanupMovedMemberOverwrite = oldState.id !== previousOwnerId && oldState.id !== previousGuildOwnerId;
+        if (shouldCleanupMovedMemberOverwrite) {
+            await oldChannel.permissionOverwrites.delete(oldState.id).catch(() => null);
+        }
     }
 
     if (!destinationChannel) return;
@@ -552,6 +577,32 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     const guildOwnerId = destinationChannel.guild.ownerId;
     const isAllowedUser = newState.id === ownerId || newState.id === guildOwnerId;
     if (isAllowedUser) return;
+
+        // Se l'utente viene spostato da un altro canale vocale da chi ha i permessi,
+    // aggiungiamo un permesso esplicito per permettere lo spostamento senza disconnessione.
+    const wasMovedFromAnotherVoiceChannel = Boolean(oldState.channelId && oldState.channelId !== destinationChannel.id);
+    if (wasMovedFromAnotherVoiceChannel) {
+        const allowedMovers = new Set([ownerId, guildOwnerId]);
+        const movedByAllowedUser = await wasMovedByAllowedUser(destinationChannel.guild, newState.id, allowedMovers);
+        const couldNotValidateMove = movedByAllowedUser === null;
+        if (movedByAllowedUser === false) {
+            await newState.disconnect('Canale vocale privato: puoi entrare solo se vieni spostato dal proprietario del canale o dal proprietario del server.').catch(() => null);
+            return;
+        }
+
+        // Se non possiamo validare via audit log, non blocchiamo il move per non impedire il lavoro del proprietario.
+        if (couldNotValidateMove) {
+            console.warn(`Impossibile validare audit log move per ${newState.id} in ${destinationChannel.id}.`);
+        }
+
+        await destinationChannel.permissionOverwrites.edit(newState.id, {
+            ViewChannel: true,
+            Connect: true,
+            Speak: true,
+            Stream: true
+        }).catch(() => null);
+        return;
+    }
 
     await newState.disconnect('Canale vocale privato: accesso consentito solo al proprietario del canale e al proprietario del server.').catch(() => null);
 });
