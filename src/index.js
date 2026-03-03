@@ -55,6 +55,47 @@ async function sendDailyChannelMessage(client, messageText) {
     await channel.send(messageText);
 }
 
+function isDailyGreetingMessage(content) {
+    return content === GOOD_MORNING_MESSAGE || content === GOOD_NIGHT_MESSAGE;
+}
+
+async function clearDailyGreetingMessages(client) {
+    if (!config.dailyGreetingChannelId) return;
+
+    const channel = client.channels.cache.get(config.dailyGreetingChannelId)
+        || await client.channels.fetch(config.dailyGreetingChannelId).catch(() => null);
+
+    if (!channel || !channel.isTextBased()) {
+        console.error(`Canale non trovato o non testuale per pulizia messaggi programmati: ${config.dailyGreetingChannelId}`);
+        return;
+    }
+
+    let deletedCount = 0;
+    let lastMessageId;
+
+    while (true) {
+        const options = { limit: 100 };
+        if (lastMessageId) options.before = lastMessageId;
+
+        const messages = await channel.messages.fetch(options).catch(() => null);
+        if (!messages || messages.size === 0) break;
+
+        for (const message of messages.values()) {
+            if (message.author.id !== client.user.id) continue;
+            if (!isDailyGreetingMessage(message.content)) continue;
+
+            const deleted = await message.delete().then(() => true).catch(() => false);
+            if (deleted) deletedCount += 1;
+        }
+
+        lastMessageId = messages.last().id;
+    }
+
+    if (deletedCount > 0) {
+        console.log(`🧹 Pulizia messaggi giornalieri completata: rimossi ${deletedCount} messaggi.`);
+    }
+}
+
 function persistRankData() {
     fs.writeFileSync(config.paths.rankDataFile, JSON.stringify(rankData, null, 2));
 }
@@ -393,6 +434,15 @@ client.once('clientReady', async () => {
         'Europe/Rome'
     );
         goodNightJob.start();
+
+        const clearGreetingsJob = new cron.CronJob(
+            '0 */12 * * *',
+            () => clearDailyGreetingMessages(client).catch(error => console.error('Errore pulizia messaggi buongiorno/buonanotte:', error)),
+            null,
+            true,
+            'Europe/Rome'
+        );
+        clearGreetingsJob.start();
 
     }
 
