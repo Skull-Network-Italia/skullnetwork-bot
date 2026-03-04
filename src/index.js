@@ -97,6 +97,52 @@ async function clearDailyGreetingMessages(client) {
     }
 }
 
+async function clearChannelMessagesHourly(client, channelId) {
+    const channel = client.channels.cache.get(channelId)
+        || await client.channels.fetch(channelId).catch(() => null);
+
+    if (!channel || !channel.isTextBased()) {
+        console.error(`Canale non trovato o non testuale per pulizia oraria: ${channelId}`);
+        return;
+    }
+
+    let deletedCount = 0;
+    let lastMessageId;
+
+    while (true) {
+        const options = { limit: 100 };
+        if (lastMessageId) options.before = lastMessageId;
+
+        const messages = await channel.messages.fetch(options).catch(() => null);
+        if (!messages || messages.size === 0) break;
+
+        const deletableMessages = messages.filter(message => !message.pinned);
+        if (deletableMessages.size === 0) {
+            lastMessageId = messages.last().id;
+            continue;
+        }
+
+        const recentMessages = deletableMessages.filter(message => Date.now() - message.createdTimestamp < 14 * 24 * 60 * 60 * 1000);
+        const oldMessages = deletableMessages.filter(message => Date.now() - message.createdTimestamp >= 14 * 24 * 60 * 60 * 1000);
+
+        if (recentMessages.size > 0) {
+            const bulkDeleted = await channel.bulkDelete(recentMessages, true).catch(() => null);
+            if (bulkDeleted) deletedCount += bulkDeleted.size;
+        }
+
+        for (const message of oldMessages.values()) {
+            const deleted = await message.delete().then(() => true).catch(() => false);
+            if (deleted) deletedCount += 1;
+        }
+
+        lastMessageId = messages.last().id;
+    }
+
+    if (deletedCount > 0) {
+        console.log(`🧹 Pulizia oraria canale ${channelId}: rimossi ${deletedCount} messaggi.`);
+    }
+}
+
 function persistRankData() {
     fs.writeFileSync(config.paths.rankDataFile, JSON.stringify(rankData, null, 2));
 }
@@ -466,6 +512,19 @@ client.once('clientReady', async () => {
 
     await setupRoleReaction(client);
     await bootstrapPrivateVoiceChannels(client);
+
+    if (!config.hourlyCleanupChannelId) {
+        console.error('HOURLY_CLEANUP_CHANNEL_ID mancante nel file .env: pulizia oraria disattivata.');
+    } else {
+        const hourlyCleanupJob = new cron.CronJob(
+            '0 * * * *',
+            () => clearChannelMessagesHourly(client, config.hourlyCleanupChannelId).catch(error => console.error('Errore pulizia oraria canale:', error)),
+            null,
+            true,
+            'Europe/Rome'
+        );
+        hourlyCleanupJob.start();
+    }
 });
 
 client.on('guildMemberAdd', welcome);
