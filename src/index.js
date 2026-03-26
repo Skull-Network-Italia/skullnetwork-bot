@@ -1,6 +1,7 @@
-const { Client, GatewayIntentBits, ChannelType, PermissionFlagsBits } = require('discord.js');
+const { Client, GatewayIntentBits, ChannelType, PermissionFlagsBits, Partials } = require('discord.js');
 const cron = require('cron');
 const fs = require('fs');
+const { setTimeout: sleep } = require('node:timers/promises');
 
 const config = require('./config/env');
 const updateMemberCount = require('./modules/updateMemberCount');
@@ -10,7 +11,22 @@ const { checkLiveStatus } = require('./modules/twitchLiveChecker');
 const handleSocialCommand = require('./commands/social');
 const handleRulesDsCommand = require('./commands/rulesds');
 
-const forbiddenPatterns = JSON.parse(fs.readFileSync(config.paths.forbiddenLinksFile, 'utf8')).map(p => new RegExp(p, 'i'));
+function loadForbiddenPatterns() {
+    const rawPatterns = JSON.parse(fs.readFileSync(config.paths.forbiddenLinksFile, 'utf8'));
+    if (!Array.isArray(rawPatterns)) return [];
+
+    return rawPatterns.flatMap(pattern => {
+        if (typeof pattern !== 'string' || pattern.length === 0 || pattern.length > 200) return [];
+        try {
+            return [new RegExp(pattern, 'i')];
+        } catch (error) {
+            console.warn(`Pattern link vietato non valido ignorato: "${pattern}"`, error.message);
+            return [];
+        }
+    });
+}
+
+const forbiddenPatterns = loadForbiddenPatterns();
 
 let userViolations = {};
 let bans = {};
@@ -285,7 +301,8 @@ const client = new Client({
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessageReactions,
         GatewayIntentBits.GuildVoiceStates
-    ]
+    ],
+    partials: [Partials.Message, Partials.Channel, Partials.Reaction]
 });
 
 async function sendMemberLogEmbed(guild, embed) {
@@ -541,7 +558,7 @@ client.on('guildMemberRemove', async member => {
         messageSpamTracker.delete(member.id);
         duplicateMessageTracker.delete(member.id);
 
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        await sleep(1500);
 
         const wasKicked = await isRecentModerationAction(member.guild, AUDIT_MEMBER_KICK, member.id);
         const wasBanned = await isRecentModerationAction(member.guild, AUDIT_MEMBER_BAN_ADD, member.id);

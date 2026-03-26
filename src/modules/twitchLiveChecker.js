@@ -20,6 +20,7 @@ function saveCache(liveList) {
 // Recupera token da Twitch
 async function getAccessToken() {
     const res = await axios.post('https://id.twitch.tv/oauth2/token', null, {
+        timeout: 10_000,
         params: {
             client_id: config.twitch.clientId,
             client_secret: config.twitch.clientSecret,
@@ -41,6 +42,7 @@ async function checkLiveStatus(client) {
     for (const streamer of config.twitch.streamers) {
         try {
             const res = await axios.get('https://api.twitch.tv/helix/streams', {
+                timeout: 10_000,
                 headers: {
                     'Client-ID': config.twitch.clientId,
                     Authorization: `Bearer ${accessToken}`
@@ -81,6 +83,10 @@ async function checkLiveStatus(client) {
             }
 
         } catch (err) {
+            if (err.response?.status === 401) {
+                accessToken = '';
+                console.warn('⚠️ Token Twitch scaduto, verrà rigenerato al prossimo ciclo.');
+            }
             console.warn(`⚠️ Errore nel controllo di ${streamer}:`, err.response?.data || err.message);
         }
     }

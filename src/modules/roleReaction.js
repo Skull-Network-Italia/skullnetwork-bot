@@ -56,7 +56,20 @@ Clicca per ricevere il ruolo:
         console.log('✅ Nuovo messaggio role reaction creato e salvato.');
     }
 
+    async function hydrateReaction(reaction) {
+        if (reaction.partial) {
+            try {
+                await reaction.fetch();
+            } catch (error) {
+                console.error('Errore fetch reaction partial:', error);
+                return false;
+            }
+        }
+        return true;
+    }
+
     client.on('messageReactionAdd', async (reaction, user) => {
+        if (!await hydrateReaction(reaction)) return;
         if (reaction.message.id !== message.id || user.bot) return;
         const roleId = rolesMap[reaction.emoji.name];
         if (!roleId) return;
@@ -65,6 +78,7 @@ Clicca per ricevere il ruolo:
     });
 
     client.on('messageReactionRemove', async (reaction, user) => {
+        if (!await hydrateReaction(reaction)) return;
         if (reaction.message.id !== message.id || user.bot) return;
         const roleId = rolesMap[reaction.emoji.name];
         if (!roleId) return;
