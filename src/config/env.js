@@ -21,6 +21,14 @@ module.exports = {
     roleReactionChannelId: process.env.ROLE_REACTION_CHANNEL_ID,
     dailyGreetingChannelId: process.env.DAILY_GREETING_CHANNEL_ID,
     hourlyCleanupChannelId: process.env.HOURLY_CLEANUP_CHANNEL_ID,
+    channels: {
+        inviti: process.env.CHANNEL_INVITI_ID,
+        calendario: process.env.CHANNEL_CALENDARIO_ID,
+        log: process.env.CHANNEL_LOG_ID || process.env.LOG_CHANNEL_ID
+    },
+    ownerId: process.env.OWNER_ID,
+    staffRoleId: process.env.STAFF_ROLE_ID,
+    partners: (process.env.PARTNERS || '').split(',').map(item => item.trim()).filter(Boolean),
     roleByEmoji: {
         '🚛': process.env.ROLE_ETS_ID,
         '🚜': process.env.ROLE_FS22_ID,
@@ -51,6 +59,7 @@ module.exports = {
         bansFile: path.join(__dirname, '..', '..', 'data', 'bans.json'),
         rankDataFile: path.join(__dirname, '..', '..', 'data', 'rankData.json'),
         reactionMessageFile: path.join(__dirname, '..', '..', 'data', 'reactionMessage.json'),
-        twitchLiveCacheFile: path.join(__dirname, '..', '..', 'data', 'twitchLiveCache.json')
+        twitchLiveCacheFile: path.join(__dirname, '..', '..', 'data', 'twitchLiveCache.json'),
+        convogliFile: path.join(__dirname, '..', '..', 'data', 'convogli.json')
     }
 };
