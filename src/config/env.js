@@ -8,26 +8,32 @@ function toInt(value, fallback) {
     return Number.isNaN(parsed) ? fallback : parsed;
 }
 
+function cleanString(value) {
+    if (typeof value !== 'string') return undefined;
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+}
+
 module.exports = {
-    discordToken: process.env.DISCORD_TOKEN,
-    guildId: process.env.GUILD_ID,
-    memberCountChannelId: process.env.CHANNEL_ID,
-    logChannelId: process.env.LOG_CHANNEL_ID,
-    memberLogChannelId: process.env.MEMBER_LOG_CHANNEL_ID || process.env.LOG_CHANNEL_ID,
-    socialChannelId: process.env.SOCIAL_CHANNEL_ID,
-    rankLogChannelId: process.env.RANK_LOG_CHANNEL_ID,
-    privateVoiceCategoryId: process.env.PRIVATE_VOICE_CATEGORY_ID,
+    discordToken: cleanString(process.env.DISCORD_TOKEN),
+    guildId: cleanString(process.env.GUILD_ID),
+    memberCountChannelId: cleanString(process.env.CHANNEL_ID),
+    logChannelId: cleanString(process.env.LOG_CHANNEL_ID),
+    memberLogChannelId: cleanString(process.env.MEMBER_LOG_CHANNEL_ID) || cleanString(process.env.LOG_CHANNEL_ID),
+    socialChannelId: cleanString(process.env.SOCIAL_CHANNEL_ID),
+    rankLogChannelId: cleanString(process.env.RANK_LOG_CHANNEL_ID),
+    privateVoiceCategoryId: cleanString(process.env.PRIVATE_VOICE_CATEGORY_ID),
     privateVoiceInactivityMs: toInt(process.env.PRIVATE_VOICE_INACTIVITY_MS, 5 * 60 * 1000),
-    roleReactionChannelId: process.env.ROLE_REACTION_CHANNEL_ID,
-    dailyGreetingChannelId: process.env.DAILY_GREETING_CHANNEL_ID,
-    hourlyCleanupChannelId: process.env.HOURLY_CLEANUP_CHANNEL_ID,
+    roleReactionChannelId: cleanString(process.env.ROLE_REACTION_CHANNEL_ID),
+    dailyGreetingChannelId: cleanString(process.env.DAILY_GREETING_CHANNEL_ID),
+    hourlyCleanupChannelId: cleanString(process.env.HOURLY_CLEANUP_CHANNEL_ID),
     channels: {
-        inviti: process.env.CHANNEL_INVITI_ID,
-        calendario: process.env.CHANNEL_CALENDARIO_ID,
-        log: process.env.CHANNEL_LOG_ID || process.env.LOG_CHANNEL_ID
+        inviti: cleanString(process.env.CHANNEL_INVITI_ID),
+        calendario: cleanString(process.env.CHANNEL_CALENDARIO_ID),
+        log: cleanString(process.env.CHANNEL_LOG_ID) || cleanString(process.env.LOG_CHANNEL_ID)
     },
-    ownerId: process.env.OWNER_ID,
-    staffRoleId: process.env.STAFF_ROLE_ID,
+    ownerId: cleanString(process.env.OWNER_ID),
+    staffRoleId: cleanString(process.env.STAFF_ROLE_ID),
     partners: (process.env.PARTNERS || '').split(',').map(item => item.trim()).filter(Boolean),
     roleByEmoji: {
         '🚛': process.env.ROLE_ETS_ID,

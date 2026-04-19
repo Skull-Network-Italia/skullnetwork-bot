@@ -5,7 +5,7 @@ const { disableComponents } = require('./modal');
 function canModerateConvogli(member, config) {
     if (!member) return false;
     if (member.id === config.ownerId) return true;
-    return member.roles?.cache?.has(config.staffRoleId);
+    return Boolean(config.staffRoleId) && member.roles?.cache?.has(config.staffRoleId);
 }
 
 async function approveRequest({ interaction, requestId, config, client }) {

@@ -532,8 +532,11 @@ client.once('clientReady', async () => {
     await setupRoleReaction(client);
     await bootstrapPrivateVoiceChannels(client);
 
-    if (!config.channels.inviti || !config.channels.calendario || !config.ownerId || !config.staffRoleId) {
-        console.warn('Configurazione convogli incompleta: imposta CHANNEL_INVITI_ID, CHANNEL_CALENDARIO_ID, OWNER_ID, STAFF_ROLE_ID.');
+    const hasConvogliChannels = Boolean(config.channels.inviti && config.channels.calendario);
+    const hasConvogliModeration = Boolean(config.ownerId || config.staffRoleId);
+
+    if (!hasConvogliChannels || !hasConvogliModeration) {
+        console.warn('Configurazione convogli incompleta: imposta CHANNEL_INVITI_ID, CHANNEL_CALENDARIO_ID e almeno uno tra OWNER_ID o STAFF_ROLE_ID.');
     } else {
         await bootstrapConvogli(client, config).catch(error => console.error('Errore bootstrap convogli:', error));
         startReminders(client, config);
