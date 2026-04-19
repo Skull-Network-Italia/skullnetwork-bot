@@ -1,3 +1,4 @@
+const { MessageFlags } = require('discord.js');
 const { ensureInviteMessage, refreshCalendarMessage, loadConvogli, saveConvogli, getAvailabilityEmoji } = require('./calendar');
 const { createSubmitConvoglioModal, createRejectModal, createRequestEmbed, createApprovalButtons } = require('./modal');
 const { parseTruckersmpEvent } = require('./parser');
@@ -26,7 +27,7 @@ async function handleConvogliInteraction(interaction, client, config) {
 
         if (interaction.customId.startsWith('convoglio_approve:') || interaction.customId.startsWith('convoglio_reject:')) {
             if (!canModerateConvogli(interaction.member, config)) {
-                await interaction.reply({ content: 'Non hai i permessi per approvare/rifiutare i convogli.', ephemeral: true });
+                await interaction.reply({ content: 'Non hai i permessi per approvare/rifiutare i convogli.', flags: MessageFlags.Ephemeral });
                 return true;
             }
 
@@ -49,7 +50,7 @@ async function handleConvogliInteraction(interaction, client, config) {
             const vtcName = sanitizeVtcName(interaction.fields.getTextInputValue('vtc_name'));
 
             if (!discordCode || !vtcName) {
-                await interaction.reply({ content: 'Codice Discord o nome VTC non validi.', ephemeral: true });
+                await interaction.reply({ content: 'Codice Discord o nome VTC non validi.', flags: MessageFlags.Ephemeral });
                 return true;
             }
 
@@ -68,7 +69,7 @@ async function handleConvogliInteraction(interaction, client, config) {
                 if (!validation.isValid) {
                     await interaction.reply({
                         content: `Richiesta bloccata:\n- ${validation.errors.join('\n- ')}`,
-                        ephemeral: true
+                        flags: MessageFlags.Ephemeral
                     });
                     return true;
                 }
@@ -93,7 +94,7 @@ async function handleConvogliInteraction(interaction, client, config) {
 
                 const inviteChannel = await client.channels.fetch(config.channels.inviti).catch(() => null);
                 if (!inviteChannel || !inviteChannel.isTextBased()) {
-                    await interaction.reply({ content: 'Canale inviti non disponibile.', ephemeral: true });
+                    await interaction.reply({ content: 'Canale inviti non disponibile.', flags: MessageFlags.Ephemeral });
                     return true;
                 }
 
@@ -116,12 +117,12 @@ async function handleConvogliInteraction(interaction, client, config) {
                     saveConvogli(config, freshStore);
                 }
 
-                await interaction.reply({ content: 'Richiesta inviata correttamente allo staff ✅', ephemeral: true });
+                await interaction.reply({ content: 'Richiesta inviata correttamente allo staff ✅', flags: MessageFlags.Ephemeral });
                 return true;
             } catch (error) {
                 await interaction.reply({
                     content: `Errore durante il parsing/validazione: ${error.message}`,
-                    ephemeral: true
+                    flags: MessageFlags.Ephemeral
                 });
                 return true;
             }
@@ -129,7 +130,7 @@ async function handleConvogliInteraction(interaction, client, config) {
 
         if (interaction.customId.startsWith('convoglio_reject_modal:')) {
             if (!canModerateConvogli(interaction.member, config)) {
-                await interaction.reply({ content: 'Non hai i permessi per rifiutare i convogli.', ephemeral: true });
+                await interaction.reply({ content: 'Non hai i permessi per rifiutare i convogli.', flags: MessageFlags.Ephemeral });
                 return true;
             }
 
@@ -137,12 +138,12 @@ async function handleConvogliInteraction(interaction, client, config) {
             const reason = interaction.fields.getTextInputValue('reject_reason').trim();
 
             if (!reason) {
-                await interaction.reply({ content: 'Motivo rifiuto obbligatorio.', ephemeral: true });
+                await interaction.reply({ content: 'Motivo rifiuto obbligatorio.', flags: MessageFlags.Ephemeral });
                 return true;
             }
 
             try {
-                await interaction.deferReply({ ephemeral: true });
+                await interaction.deferReply({ flags: MessageFlags.Ephemeral });
                 await rejectRequest({ interaction, requestId, reason, config, client });
                 await interaction.editReply({ content: 'Richiesta rifiutata correttamente.' });
                 return true;

@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, ChannelType, PermissionFlagsBits, Partials } = require('discord.js');
+const { Client, GatewayIntentBits, ChannelType, PermissionFlagsBits, Partials, MessageFlags } = require('discord.js');
 const cron = require('cron');
 const fs = require('fs');
 const { setTimeout: sleep } = require('node:timers/promises');
@@ -709,7 +709,7 @@ client.on('interactionCreate', async interaction => {
         console.error('Errore gestione interaction convogli:', error);
 
         if (interaction.isRepliable()) {
-            const payload = { content: `Errore: ${error.message || 'operazione non riuscita.'}`, ephemeral: true };
+            const payload = { content: `Errore: ${error.message || 'operazione non riuscita.'}`, flags: MessageFlags.Ephemeral };
             if (interaction.deferred || interaction.replied) {
                 await interaction.followUp(payload).catch(() => null);
             } else {
