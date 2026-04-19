@@ -1,18 +1,8 @@
 const { findConflicts } = require('./conflict');
 const { getCountersForDate } = require('./calendar');
 
-function getLocalTimeParts(dateMs, timeZone = 'Europe/Rome') {
-    const formatter = new Intl.DateTimeFormat('it-IT', {
-        timeZone,
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit'
-    });
-
-    const parts = formatter.formatToParts(new Date(dateMs));
-    const hour = Number(parts.find(p => p.type === 'hour')?.value || 0);
-    const minute = Number(parts.find(p => p.type === 'minute')?.value || 0);
-    return { hour, minute };
+function isValidTime(value) {
+    return /^([01]\d|2[0-3]):([0-5]\d)$/.test(String(value || '').trim());
 }
 
 function validateConvoglio({ store, parsedEvent, vtcName, isPartner }) {
@@ -23,12 +13,8 @@ function validateConvoglio({ store, parsedEvent, vtcName, isPartner }) {
         errors.push('Evento già presente: questo truckersmp_id è già salvato.');
     }
 
-    const localTime = getLocalTimeParts(parsedEvent.data_utc);
-    const totalMinutes = localTime.hour * 60 + localTime.minute;
-    const minAllowed = 19 * 60;
-    const maxAllowed = 21 * 60 + 30;
-    if (totalMinutes < minAllowed || totalMinutes > maxAllowed) {
-        errors.push('Orario non consentito: il convoglio deve essere tra le 19:00 e le 21:30 (ora italiana).');
+    if (!isValidTime(parsedEvent.ritrovo_time) || !isValidTime(parsedEvent.partenza_time)) {
+        errors.push('Orari non validi: specifica ritrovo e partenza nel formato HH:mm.');
     }
 
     const counters = getCountersForDate(store, parsedEvent.data_utc);

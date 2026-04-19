@@ -71,6 +71,7 @@ function formatEventLine(event, index) {
         `**${index + 1}. ${partnerPrefix}${event.organizzatore}**`,
         `📅 ${event.data_locale}`,
         `🚚 ${event.partenza} → ${event.destinazione}`,
+        `⏱️ Ritrovo ${event.ritrovo_time || 'N/D'} • Partenza ${event.partenza_time || 'N/D'}`,
         `🎮 ${event.game} • 🌐 ${event.server}`,
         `🤝 Partner: **${partnerValue}**`,
         `[TruckersMP](${event.link}) • [Discord](https://discord.gg/${event.discord_code})`

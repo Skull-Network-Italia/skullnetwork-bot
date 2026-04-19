@@ -27,6 +27,12 @@ function sanitizeVtcName(raw) {
     return raw.trim().replace(/[\n\r\t]/g, ' ').slice(0, 100);
 }
 
+function sanitizeTime(value) {
+    const raw = String(value || '').trim();
+    const match = raw.match(/^([01]\d|2[0-3]):([0-5]\d)$/);
+    return match ? raw : '';
+}
+
 function parseManualUtc(input) {
     const match = input.trim().match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})$/);
     if (!match) return null;
@@ -52,13 +58,14 @@ async function bootstrapConvogli(client, config) {
     await refreshCalendarMessage(client, config);
 }
 
-async function createConvoglioRequest({ client, interaction, config, parsedEvent, vtcName, discordCode }) {
+async function createConvoglioRequest({ client, interaction, config, parsedEvent, vtcName, discordCode, ritrovoTime, partenzaTime }) {
+    const normalizedEvent = { ...parsedEvent, ritrovo_time: ritrovoTime, partenza_time: partenzaTime };
     const store = loadConvogli(config);
     const isPartner = config.partners.some(partner => partner.toLowerCase() === vtcName.toLowerCase());
 
     const validation = validateConvoglio({
         store,
-        parsedEvent,
+        parsedEvent: normalizedEvent,
         vtcName,
         isPartner
     });
@@ -81,7 +88,7 @@ async function createConvoglioRequest({ client, interaction, config, parsedEvent
         discordCode,
         partner: isPartner,
         counters: validation.counters,
-        event: parsedEvent,
+        event: normalizedEvent,
         status: 'pending',
         createdAt: Date.now()
     };
@@ -97,7 +104,7 @@ async function createConvoglioRequest({ client, interaction, config, parsedEvent
 
     const sentMessage = await inviteChannel.send({
         embeds: [createRequestEmbed({
-            event: parsedEvent,
+            event: normalizedEvent,
             vtcName,
             discordCode,
             availabilityEmoji,
@@ -163,17 +170,19 @@ async function handleConvogliInteraction(interaction, client, config) {
             const link = interaction.fields.getTextInputValue('truckersmp_link').trim();
             const discordCode = sanitizeDiscordCode(interaction.fields.getTextInputValue('discord_code'));
             const vtcName = sanitizeVtcName(interaction.fields.getTextInputValue('vtc_name'));
+            const ritrovoTime = sanitizeTime(interaction.fields.getTextInputValue('ritrovo_time'));
+            const partenzaTime = sanitizeTime(interaction.fields.getTextInputValue('partenza_time'));
 
-            if (!discordCode || !vtcName) {
-                await interaction.reply({ content: 'Codice Discord o nome VTC non validi.', flags: MessageFlags.Ephemeral });
+            if (!discordCode || !vtcName || !ritrovoTime || !partenzaTime) {
+                await interaction.reply({ content: 'Dati non validi: controlla codice Discord, nome VTC, orario ritrovo e orario partenza (HH:mm).', flags: MessageFlags.Ephemeral });
                 return true;
             }
 
             try {
                 const parsedEvent = await parseTruckersmpEvent(link);
-                return await createConvoglioRequest({ client, interaction, config, parsedEvent, vtcName, discordCode });
+                return await createConvoglioRequest({ client, interaction, config, parsedEvent, vtcName, discordCode, ritrovoTime, partenzaTime });
             } catch (error) {
-                manualDrafts.set(interaction.user.id, { link, discordCode, vtcName, createdAt: Date.now() });
+                manualDrafts.set(interaction.user.id, { link, discordCode, vtcName, ritrovoTime, partenzaTime, createdAt: Date.now() });
 
                 await interaction.reply({
                     content: `Parser automatico non riuscito (${error.message}). Puoi completare l'invio in modalità manuale.`,
@@ -216,7 +225,9 @@ async function handleConvogliInteraction(interaction, client, config) {
                 config,
                 parsedEvent: manualEvent,
                 vtcName: draft.vtcName,
-                discordCode: draft.discordCode
+                discordCode: draft.discordCode,
+                ritrovoTime: draft.ritrovoTime,
+                partenzaTime: draft.partenzaTime
             });
         }
 

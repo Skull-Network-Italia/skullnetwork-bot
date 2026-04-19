@@ -36,10 +36,28 @@ function createSubmitConvoglioModal() {
         .setStyle(TextInputStyle.Short)
         .setPlaceholder('Skull Network');
 
+    const ritrovoInput = new TextInputBuilder()
+        .setCustomId('ritrovo_time')
+        .setLabel('Orario ritrovo (HH:mm)')
+        .setRequired(true)
+        .setMaxLength(5)
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('19:30');
+
+    const partenzaInput = new TextInputBuilder()
+        .setCustomId('partenza_time')
+        .setLabel('Orario partenza (HH:mm)')
+        .setRequired(true)
+        .setMaxLength(5)
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('20:00');
+
     modal.addComponents(
         new ActionRowBuilder().addComponents(linkInput),
         new ActionRowBuilder().addComponents(discordInput),
-        new ActionRowBuilder().addComponents(vtcInput)
+        new ActionRowBuilder().addComponents(vtcInput),
+        new ActionRowBuilder().addComponents(ritrovoInput),
+        new ActionRowBuilder().addComponents(partenzaInput)
     );
 
     return modal;
@@ -143,6 +161,7 @@ function createRequestEmbed({ event, vtcName, discordCode, availabilityEmoji, co
             { name: '🤝 Partner', value: partner ? 'Sì' : 'No', inline: true },
             { name: '📊 Stato slot', value: `${availabilityEmoji} ${statusLabel}`, inline: true },
             { name: '🕒 Data/Ora', value: `${event.data_locale} (UTC ${new Date(event.data_utc).toISOString().slice(11, 16)})`, inline: false },
+            { name: '⏱️ Ritrovo / Partenza', value: `${event.ritrovo_time || 'N/D'} / ${event.partenza_time || 'N/D'}`, inline: true },
             { name: '🗺️ Tratta', value: `${event.partenza} → ${event.destinazione}`, inline: false },
             { name: '🎮 Setup', value: `${event.game} • ${event.server}`, inline: false },
             { name: '🔗 Link', value: `[TruckersMP](${event.link}) • [Discord](https://discord.gg/${discordCode})`, inline: false },
