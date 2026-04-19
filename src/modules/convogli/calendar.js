@@ -135,10 +135,7 @@ function buildCalendarEmbed(store) {
     const now = Date.now();
     const currentCounters = getCountersForDate(store, now);
 
-    const sorted = [...events].sort((a, b) => {
-        if (a.partner !== b.partner) return a.partner ? -1 : 1;
-        return Number(a.data_utc) - Number(b.data_utc);
-    });
+    const sorted = [...events].sort((a, b) => Number(a.data_utc) - Number(b.data_utc));
 
     const description = sorted.length > 0
         ? sorted.map((event, idx) => formatEventLine(event, idx)).join('\n\n')
@@ -151,9 +148,9 @@ function buildCalendarEmbed(store) {
         .addFields(
             { name: '📈 Slot Settimana', value: `**${currentCounters.weekCount}/3**`, inline: true },
             { name: '🗓️ Slot Mese', value: `**${currentCounters.monthCount}/12**`, inline: true },
-            { name: 'ℹ️ Ordine elenco', value: 'Partner (solo se presenti) poi data', inline: true }
+            { name: 'ℹ️ Ordine elenco', value: 'Solo per data evento', inline: true }
         )
-        .setFooter({ text: `Aggiornato il ${new Date().toLocaleString('it-IT', { timeZone: 'Europe/Rome' })} • Partner esplicitato su ogni evento` })
+        .setFooter({ text: `Aggiornato il ${new Date().toLocaleString('it-IT', { timeZone: 'Europe/Rome' })} • Ordinato per data evento` })
         .setTimestamp();
 }
 
