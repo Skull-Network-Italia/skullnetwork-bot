@@ -1,6 +1,11 @@
 const fs = require('fs');
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
+const EMBED_COLORS = {
+    brand: 0x5865f2,
+    calendar: 0x00b894
+};
+
 function ensureConvogliStore(config) {
     const file = config.paths.convogliFile;
     if (!fs.existsSync(file)) {
@@ -58,9 +63,15 @@ function getCountersForDate(store, dateMs) {
     return { weekCount, monthCount, weekKey, monthKey };
 }
 
-function formatEventLine(event) {
-    const partnerEmoji = event.partner ? '🤝' : '•';
-    return `${partnerEmoji} **${event.data_locale}** — **${event.organizzatore}**\n${event.partenza} → ${event.destinazione} (${event.game})\n[TruckersMP](${event.link}) • discord.gg/${event.discord_code}`;
+function formatEventLine(event, index) {
+    const partnerBadge = event.partner ? '🤝 **PARTNER**' : '🚚 **CONVOGLIO**';
+    return [
+        `### ${index + 1}. ${event.organizzatore}`,
+        `${partnerBadge} • 📅 **${event.data_locale}**`,
+        `🛣️ ${event.partenza} → ${event.destinazione}`,
+        `🎮 ${event.game} • 🌐 ${event.server}`,
+        `🔗 [TruckersMP](${event.link}) • [Discord](https://discord.gg/${event.discord_code})`
+    ].join('\n');
 }
 
 function getAvailabilityEmoji({ weekCount, monthCount, hasHardConflict, hasNearEvent }) {
@@ -71,9 +82,16 @@ function getAvailabilityEmoji({ weekCount, monthCount, hasHardConflict, hasNearE
 
 function createInviteEmbed() {
     return new EmbedBuilder()
-        .setColor(0x5865f2)
-        .setTitle('Sistema Convogli')
-        .setDescription('Premi il pulsante per inviare un convoglio')
+        .setColor(EMBED_COLORS.brand)
+        .setTitle('🚛 Sistema Convogli')
+        .setDescription([
+            'Invia qui la tua proposta convoglio TruckersMP.',
+            '',
+            '• Parsing automatico evento',
+            '• Validazioni orario/conflitti',
+            '• Revisione staff con approvazione'
+        ].join('\n'))
+        .setFooter({ text: 'Skull Network • Convogli ETS2/ATS' })
         .setTimestamp();
 }
 
@@ -119,17 +137,19 @@ function buildCalendarEmbed(store) {
     });
 
     const description = sorted.length > 0
-        ? sorted.map(formatEventLine).join('\n\n')
-        : 'Nessun convoglio approvato al momento.';
+        ? sorted.map((event, idx) => formatEventLine(event, idx)).join('\n\n')
+        : 'Nessun convoglio approvato al momento.\nPremi **➕ Invia Convoglio** nel canale inviti.';
 
     return new EmbedBuilder()
-        .setColor(0x2ecc71)
+        .setColor(EMBED_COLORS.calendar)
         .setTitle('📅 Calendario Convogli')
         .setDescription(description)
         .addFields(
-            { name: 'Settimana', value: `${currentCounters.weekCount}/3`, inline: true },
-            { name: 'Mese', value: `${currentCounters.monthCount}/12`, inline: true }
+            { name: '📈 Slot Settimana', value: `**${currentCounters.weekCount}/3**`, inline: true },
+            { name: '🗓️ Slot Mese', value: `**${currentCounters.monthCount}/12**`, inline: true },
+            { name: 'ℹ️ Priorità', value: 'Partner → Data evento', inline: true }
         )
+        .setFooter({ text: `Aggiornato il ${new Date().toLocaleString('it-IT', { timeZone: 'Europe/Rome' })} (Italia)` })
         .setTimestamp();
 }
 

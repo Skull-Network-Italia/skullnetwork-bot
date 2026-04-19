@@ -128,20 +128,28 @@ function createRejectModal(requestId) {
 }
 
 function createRequestEmbed({ event, vtcName, discordCode, availabilityEmoji, counters, partner }) {
+    const statusLabel = availabilityEmoji === '🟢'
+        ? 'Libero'
+        : availabilityEmoji === '🟡'
+            ? 'Attenzione'
+            : 'Critico';
+
     return new EmbedBuilder()
-        .setColor(0x3498db)
-        .setTitle('📩 Nuova richiesta convoglio')
+        .setColor(partner ? 0xf1c40f : 0x3498db)
+        .setTitle('📨 Richiesta Convoglio')
+        .setDescription(`**${vtcName}** ha inviato una nuova richiesta.`)
         .addFields(
-            { name: 'Nome VTC', value: vtcName, inline: true },
-            { name: 'Partner', value: partner ? 'Sì' : 'No', inline: true },
-            { name: 'Stato', value: availabilityEmoji, inline: true },
-            { name: 'Data/Ora', value: `${event.data_locale} (UTC: ${new Date(event.data_utc).toISOString().slice(11, 16)})`, inline: false },
-            { name: 'Tratta', value: `${event.partenza} → ${event.destinazione}`, inline: false },
-            { name: 'Gioco', value: `${event.game} • ${event.server}`, inline: false },
-            { name: 'TruckersMP', value: event.link, inline: false },
-            { name: 'Discord', value: `discord.gg/${discordCode}`, inline: true },
-            { name: 'Contatori', value: `Settimana: ${counters.weekCount}/3\nMese: ${counters.monthCount}/12`, inline: true }
+            { name: '🏢 Organizzatore', value: vtcName, inline: true },
+            { name: '🤝 Partner', value: partner ? 'Sì' : 'No', inline: true },
+            { name: '📊 Stato slot', value: `${availabilityEmoji} ${statusLabel}`, inline: true },
+            { name: '🕒 Data/Ora', value: `${event.data_locale} (UTC ${new Date(event.data_utc).toISOString().slice(11, 16)})`, inline: false },
+            { name: '🗺️ Tratta', value: `${event.partenza} → ${event.destinazione}`, inline: false },
+            { name: '🎮 Setup', value: `${event.game} • ${event.server}`, inline: false },
+            { name: '🔗 Link', value: `[TruckersMP](${event.link}) • [Discord](https://discord.gg/${discordCode})`, inline: false },
+            { name: '📈 Limiti', value: `Settimana: **${counters.weekCount}/3**
+Mese: **${counters.monthCount}/12**`, inline: true }
         )
+        .setFooter({ text: 'Usa i pulsanti sotto per approvare o rifiutare' })
         .setTimestamp();
 }
 
