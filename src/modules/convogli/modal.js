@@ -45,6 +45,72 @@ function createSubmitConvoglioModal() {
     return modal;
 }
 
+function createManualFallbackButton() {
+    return [
+        new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('convoglio_manual_open')
+                .setLabel('✍️ Compila dati manualmente')
+                .setStyle(ButtonStyle.Secondary)
+        )
+    ];
+}
+
+function createManualConvoglioModal() {
+    const modal = new ModalBuilder()
+        .setCustomId('convoglio_manual_modal')
+        .setTitle('Convoglio manuale');
+
+    const dateUtcInput = new TextInputBuilder()
+        .setCustomId('manual_date_utc')
+        .setLabel('Data/Ora UTC (YYYY-MM-DD HH:mm)')
+        .setRequired(true)
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('2026-05-08 18:30');
+
+    const gameInput = new TextInputBuilder()
+        .setCustomId('manual_game')
+        .setLabel('Gioco (ETS2/ATS)')
+        .setRequired(true)
+        .setMaxLength(20)
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('ETS2');
+
+    const serverInput = new TextInputBuilder()
+        .setCustomId('manual_server')
+        .setLabel('Server')
+        .setRequired(true)
+        .setMaxLength(100)
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Simulation 2');
+
+    const departureInput = new TextInputBuilder()
+        .setCustomId('manual_departure')
+        .setLabel('Partenza')
+        .setRequired(true)
+        .setMaxLength(100)
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Calais');
+
+    const destinationInput = new TextInputBuilder()
+        .setCustomId('manual_destination')
+        .setLabel('Destinazione')
+        .setRequired(true)
+        .setMaxLength(100)
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Duisburg');
+
+    modal.addComponents(
+        new ActionRowBuilder().addComponents(dateUtcInput),
+        new ActionRowBuilder().addComponents(gameInput),
+        new ActionRowBuilder().addComponents(serverInput),
+        new ActionRowBuilder().addComponents(departureInput),
+        new ActionRowBuilder().addComponents(destinationInput)
+    );
+
+    return modal;
+}
+
 function createRejectModal(requestId) {
     const modal = new ModalBuilder()
         .setCustomId(`convoglio_reject_modal:${requestId}`)
@@ -103,6 +169,8 @@ function disableComponents(components) {
 
 module.exports = {
     createSubmitConvoglioModal,
+    createManualFallbackButton,
+    createManualConvoglioModal,
     createRejectModal,
     createRequestEmbed,
     createApprovalButtons,
