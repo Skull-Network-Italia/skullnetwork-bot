@@ -64,13 +64,16 @@ function getCountersForDate(store, dateMs) {
 }
 
 function formatEventLine(event, index) {
-    const partnerBadge = event.partner ? '🤝 **PARTNER**' : '🚚 **CONVOGLIO**';
+    const partnerValue = event.partner ? 'Sì' : 'No';
+    const partnerPrefix = event.partner ? '🤝 ' : '';
+
     return [
-        `### ${index + 1}. ${event.organizzatore}`,
-        `${partnerBadge} • 📅 **${event.data_locale}**`,
-        `🛣️ ${event.partenza} → ${event.destinazione}`,
+        `**${index + 1}. ${partnerPrefix}${event.organizzatore}**`,
+        `📅 ${event.data_locale}`,
+        `🚚 ${event.partenza} → ${event.destinazione}`,
         `🎮 ${event.game} • 🌐 ${event.server}`,
-        `🔗 [TruckersMP](${event.link}) • [Discord](https://discord.gg/${event.discord_code})`
+        `🤝 Partner: **${partnerValue}**`,
+        `[TruckersMP](${event.link}) • [Discord](https://discord.gg/${event.discord_code})`
     ].join('\n');
 }
 
@@ -147,9 +150,9 @@ function buildCalendarEmbed(store) {
         .addFields(
             { name: '📈 Slot Settimana', value: `**${currentCounters.weekCount}/3**`, inline: true },
             { name: '🗓️ Slot Mese', value: `**${currentCounters.monthCount}/12**`, inline: true },
-            { name: 'ℹ️ Priorità', value: 'Partner → Data evento', inline: true }
+            { name: 'ℹ️ Ordine elenco', value: 'Partner (solo se presenti) poi data', inline: true }
         )
-        .setFooter({ text: `Aggiornato il ${new Date().toLocaleString('it-IT', { timeZone: 'Europe/Rome' })} (Italia)` })
+        .setFooter({ text: `Aggiornato il ${new Date().toLocaleString('it-IT', { timeZone: 'Europe/Rome' })} • Partner esplicitato su ogni evento` })
         .setTimestamp();
 }
 
