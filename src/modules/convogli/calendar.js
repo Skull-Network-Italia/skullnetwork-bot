@@ -158,21 +158,17 @@ async function ensureInviteMessage(client, config) {
     await inviteMessage.edit({ embeds: [createInviteEmbed()], components: createInviteComponents() }).catch(() => null);
 }
 
-function buildCalendarEmbed(store) {
+function buildCalendarEmbeds(store) {
     const events = getUpcomingApprovedEvents(store);
     const now = Date.now();
     const currentCounters = getCountersForDate(store, now);
 
     const sorted = [...events].sort((a, b) => Number(a.data_utc) - Number(b.data_utc));
+    const eventBlocks = sorted.map((event, idx) => formatEventLine(event, idx));
 
-    const description = sorted.length > 0
-        ? sorted.map((event, idx) => formatEventLine(event, idx)).join('\n\n')
-        : 'Nessun convoglio approvato al momento.\nPremi **➕ Invia Convoglio** nel canale inviti.';
-
-    return new EmbedBuilder()
+    const headerEmbed = new EmbedBuilder()
         .setColor(EMBED_COLORS.calendar)
         .setTitle('📅 Calendario Convogli')
-        .setDescription(description)
         .addFields(
             { name: '📈 Slot Settimana', value: `**${currentCounters.weekCount}/3**`, inline: true },
             { name: '🗓️ Slot Mese', value: `**${currentCounters.monthCount}/12**`, inline: true },
@@ -180,6 +176,40 @@ function buildCalendarEmbed(store) {
         )
         .setFooter({ text: `Aggiornato il ${new Date().toLocaleString('it-IT', { timeZone: 'Europe/Rome' })} • Ordinato per data evento` })
         .setTimestamp();
+
+    if (eventBlocks.length === 0) {
+        headerEmbed.setDescription('Nessun convoglio approvato al momento.\nPremi **➕ Invia Convoglio** nel canale inviti.');
+        return [headerEmbed];
+    }
+
+    const maxDesc = 3800;
+    const descriptions = [];
+    let current = '';
+
+    for (const block of eventBlocks) {
+        const candidate = current ? `${current}\n\n${block}` : block;
+        if (candidate.length > maxDesc) {
+            descriptions.push(current);
+            current = block;
+        } else {
+            current = candidate;
+        }
+    }
+    if (current) descriptions.push(current);
+
+    const embeds = [];
+    descriptions.forEach((desc, idx) => {
+        const embed = idx === 0 ? EmbedBuilder.from(headerEmbed) : new EmbedBuilder()
+            .setColor(EMBED_COLORS.calendar)
+            .setTitle(`📅 Calendario Convogli (continua ${idx + 1}/${descriptions.length})`)
+            .setFooter({ text: `Pagina ${idx + 1}/${descriptions.length}` })
+            .setTimestamp();
+
+        embed.setDescription(desc);
+        embeds.push(embed);
+    });
+
+    return embeds.slice(0, 10);
 }
 
 async function refreshCalendarMessage(client, config) {
@@ -196,13 +226,13 @@ async function refreshCalendarMessage(client, config) {
     }
 
     if (!calendarMessage) {
-        calendarMessage = await channel.send({ embeds: [buildCalendarEmbed(store)], components: createCalendarComponents() });
+        calendarMessage = await channel.send({ embeds: buildCalendarEmbeds(store), components: createCalendarComponents() });
         store.meta.calendarMessageId = calendarMessage.id;
         saveConvogli(config, store);
         return;
     }
 
-    await calendarMessage.edit({ embeds: [buildCalendarEmbed(store)], components: createCalendarComponents() });
+    await calendarMessage.edit({ embeds: buildCalendarEmbeds(store), components: createCalendarComponents() });
 }
 
 module.exports = {
