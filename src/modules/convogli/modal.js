@@ -129,6 +129,24 @@ function createManualConvoglioModal() {
     return modal;
 }
 
+
+function createRemoveByIdModal() {
+    const modal = new ModalBuilder()
+        .setCustomId('convoglio_remove_by_id_modal')
+        .setTitle('Rimuovi Convoglio per ID');
+
+    const idInput = new TextInputBuilder()
+        .setCustomId('remove_truckersmp_id')
+        .setLabel('TruckersMP ID evento')
+        .setRequired(true)
+        .setMaxLength(20)
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('12345');
+
+    modal.addComponents(new ActionRowBuilder().addComponents(idInput));
+    return modal;
+}
+
 function createRejectModal(requestId) {
     const modal = new ModalBuilder()
         .setCustomId(`convoglio_reject_modal:${requestId}`)
@@ -198,6 +216,7 @@ module.exports = {
     createSubmitConvoglioModal,
     createManualFallbackButton,
     createManualConvoglioModal,
+    createRemoveByIdModal,
     createRejectModal,
     createRequestEmbed,
     createApprovalButtons,

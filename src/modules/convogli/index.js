@@ -1,9 +1,10 @@
 const { MessageFlags } = require('discord.js');
-const { ensureInviteMessage, refreshCalendarMessage, loadConvogli, saveConvogli, getAvailabilityEmoji } = require('./calendar');
+const { ensureInviteMessage, refreshCalendarMessage, loadConvogli, saveConvogli, getAvailabilityEmoji, prunePastEvents, removeEventByTruckersmpId } = require('./calendar');
 const {
     createSubmitConvoglioModal,
     createManualFallbackButton,
     createManualConvoglioModal,
+    createRemoveByIdModal,
     createRejectModal,
     createRequestEmbed,
     createApprovalButtons
@@ -147,6 +148,34 @@ async function handleConvogliInteraction(interaction, client, config) {
             return true;
         }
 
+        if (interaction.customId === 'convoglio_cleanup_past') {
+            if (!canModerateConvogli(interaction.member, config)) {
+                await interaction.reply({ content: 'Non hai i permessi per questa azione.', flags: MessageFlags.Ephemeral });
+                return true;
+            }
+
+            const store = loadConvogli(config);
+            const removed = prunePastEvents(store);
+            saveConvogli(config, store);
+            await refreshCalendarMessage(client, config);
+
+            await interaction.reply({
+                content: removed > 0 ? `Rimossi ${removed} eventi passati dal calendario.` : 'Nessun evento passato da rimuovere.',
+                flags: MessageFlags.Ephemeral
+            });
+            return true;
+        }
+
+        if (interaction.customId === 'convoglio_remove_by_id') {
+            if (!canModerateConvogli(interaction.member, config)) {
+                await interaction.reply({ content: 'Non hai i permessi per questa azione.', flags: MessageFlags.Ephemeral });
+                return true;
+            }
+
+            await interaction.showModal(createRemoveByIdModal());
+            return true;
+        }
+
         if (interaction.customId.startsWith('convoglio_approve:') || interaction.customId.startsWith('convoglio_reject:')) {
             if (!canModerateConvogli(interaction.member, config)) {
                 await interaction.reply({ content: 'Non hai i permessi per approvare/rifiutare i convogli.', flags: MessageFlags.Ephemeral });
@@ -229,6 +258,31 @@ async function handleConvogliInteraction(interaction, client, config) {
                 ritrovoTime: draft.ritrovoTime,
                 partenzaTime: draft.partenzaTime
             });
+        }
+
+        if (interaction.customId === 'convoglio_remove_by_id_modal') {
+            if (!canModerateConvogli(interaction.member, config)) {
+                await interaction.reply({ content: 'Non hai i permessi per questa azione.', flags: MessageFlags.Ephemeral });
+                return true;
+            }
+
+            const rawId = interaction.fields.getTextInputValue('remove_truckersmp_id').trim();
+            const truckersmpId = Number.parseInt(rawId, 10);
+            if (!Number.isFinite(truckersmpId)) {
+                await interaction.reply({ content: 'ID non valido.', flags: MessageFlags.Ephemeral });
+                return true;
+            }
+
+            const store = loadConvogli(config);
+            const removed = removeEventByTruckersmpId(store, truckersmpId);
+            saveConvogli(config, store);
+            await refreshCalendarMessage(client, config);
+
+            await interaction.reply({
+                content: removed > 0 ? `Evento ${truckersmpId} rimosso dal calendario.` : `Nessun evento trovato con ID ${truckersmpId}.`,
+                flags: MessageFlags.Ephemeral
+            });
+            return true;
         }
 
         if (interaction.customId.startsWith('convoglio_reject_modal:')) {

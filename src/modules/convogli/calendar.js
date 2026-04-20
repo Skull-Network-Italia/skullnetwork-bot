@@ -30,6 +30,19 @@ function saveConvogli(config, store) {
     fs.writeFileSync(config.paths.convogliFile, JSON.stringify(store, null, 2));
 }
 
+function prunePastEvents(store, graceMs = 2 * 60 * 60 * 1000) {
+    const now = Date.now();
+    const before = store.events.length;
+    store.events = store.events.filter(event => Number(event.data_utc) >= now - graceMs);
+    return before - store.events.length;
+}
+
+function removeEventByTruckersmpId(store, truckersmpId) {
+    const before = store.events.length;
+    store.events = store.events.filter(event => Number(event.truckersmp_id) !== Number(truckersmpId));
+    return before - store.events.length;
+}
+
 function getWeekKey(dateMs) {
     const date = new Date(dateMs);
     const tmp = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
@@ -73,7 +86,7 @@ function formatEventLine(event, index) {
         `🚚 ${event.partenza} → ${event.destinazione}`,
         `⏱️ Ritrovo ${event.ritrovo_time || 'N/D'} • Partenza ${event.partenza_time || 'N/D'}`,
         `🎮 ${event.game} • 🌐 ${event.server}`,
-        `🤝 Partner: **${partnerValue}**`,
+        `🆔 ID: ${event.truckersmp_id} • 🤝 Partner: **${partnerValue}**`,
         `[TruckersMP](${event.link}) • [Discord](https://discord.gg/${event.discord_code})`
     ].join('\n');
 }
@@ -91,8 +104,8 @@ function createInviteEmbed() {
         .setDescription([
             'Invia qui la tua proposta convoglio TruckersMP.',
             '',
-            '• Parsing automatico evento',
-            '• Validazioni orario/conflitti',
+            '• Parsing automatico evento (API TruckersMP)',
+            '• Validazioni conflitti/limiti',
             '• Revisione staff con approvazione'
         ].join('\n'))
         .setFooter({ text: 'Skull Network • Convogli ETS2/ATS' })
@@ -106,6 +119,21 @@ function createInviteComponents() {
                 .setCustomId('convoglio_submit_btn')
                 .setLabel('➕ Invia Convoglio')
                 .setStyle(ButtonStyle.Primary)
+        )
+    ];
+}
+
+function createCalendarComponents() {
+    return [
+        new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('convoglio_cleanup_past')
+                .setLabel('🧹 Rimuovi passati')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('convoglio_remove_by_id')
+                .setLabel('🗑️ Rimuovi per ID')
+                .setStyle(ButtonStyle.Danger)
         )
     ];
 }
@@ -156,6 +184,9 @@ function buildCalendarEmbed(store) {
 
 async function refreshCalendarMessage(client, config) {
     const store = loadConvogli(config);
+    const pruned = prunePastEvents(store);
+    if (pruned > 0) saveConvogli(config, store);
+
     const channel = await client.channels.fetch(config.channels.calendario).catch(() => null);
     if (!channel || !channel.isTextBased()) return;
 
@@ -165,13 +196,13 @@ async function refreshCalendarMessage(client, config) {
     }
 
     if (!calendarMessage) {
-        calendarMessage = await channel.send({ embeds: [buildCalendarEmbed(store)] });
+        calendarMessage = await channel.send({ embeds: [buildCalendarEmbed(store)], components: createCalendarComponents() });
         store.meta.calendarMessageId = calendarMessage.id;
         saveConvogli(config, store);
         return;
     }
 
-    await calendarMessage.edit({ embeds: [buildCalendarEmbed(store)] });
+    await calendarMessage.edit({ embeds: [buildCalendarEmbed(store)], components: createCalendarComponents() });
 }
 
 module.exports = {
@@ -181,6 +212,8 @@ module.exports = {
     getAvailabilityEmoji,
     ensureInviteMessage,
     refreshCalendarMessage,
+    prunePastEvents,
+    removeEventByTruckersmpId,
     getWeekKey,
     getMonthKey
 };

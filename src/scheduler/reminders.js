@@ -1,5 +1,5 @@
 const cron = require('cron');
-const { loadConvogli, saveConvogli } = require('../modules/convogli/calendar');
+const { loadConvogli, saveConvogli, prunePastEvents, refreshCalendarMessage } = require('../modules/convogli/calendar');
 
 function getRomeDateParts(dateMs) {
     const dtf = new Intl.DateTimeFormat('en-CA', {
@@ -34,6 +34,9 @@ async function runReminders(client, config) {
 
     const store = loadConvogli(config);
     let changed = false;
+
+    const removedPast = prunePastEvents(store);
+    if (removedPast > 0) changed = true;
 
     for (const event of store.events) {
         if (event.status !== 'approved') continue;
@@ -70,7 +73,10 @@ async function runReminders(client, config) {
         }
     }
 
-    if (changed) saveConvogli(config, store);
+    if (changed) {
+        saveConvogli(config, store);
+        await refreshCalendarMessage(client, config).catch(() => null);
+    }
 }
 
 function startReminders(client, config) {

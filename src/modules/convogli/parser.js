@@ -142,16 +142,23 @@ async function parseTruckersmpEvent(link) {
         throw new Error('Link TruckersMP non valido. Usa un link evento tipo https://truckersmp.com/events/12345');
     }
 
-    const response = await axios.get(link, HTTP_OPTIONS);
-    const html = String(response.data || '');
+    let html = '';
+    try {
+        const response = await axios.get(link, HTTP_OPTIONS);
+        html = String(response.data || '');
+    } catch {
+        // Continuiamo con fallback API ufficiale TruckersMP
+    }
 
-    const parsed = parseNextData(html)
-        || parseJsonLdEvent(html)
-        || parseOpenGraph(html)
-        || await fetchFromTruckersmpApi(link, truckersmpId);
+    const parsedFromHtml = html
+        ? (parseNextData(html) || parseJsonLdEvent(html) || parseOpenGraph(html))
+        : null;
+
+    const parsedFromApi = await fetchFromTruckersmpApi(link, truckersmpId);
+    const parsed = parsedFromApi || parsedFromHtml;
 
     if (!parsed || !parsed.startDate) {
-        throw new Error('Impossibile leggere i dati evento TruckersMP. Il link potrebbe non essere pubblico o il formato pagina è cambiato.');
+        throw new Error("Dati evento non disponibili via parsing/API. Usa la modalità manuale per completare l'invio.");
     }
 
     const dateMs = Date.parse(parsed.startDate);
