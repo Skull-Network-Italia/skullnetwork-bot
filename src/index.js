@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, ChannelType, PermissionFlagsBits, Partials } = require('discord.js');
+const { Client, GatewayIntentBits, ChannelType, PermissionFlagsBits, Partials, MessageFlags } = require('discord.js');
 const cron = require('cron');
 const fs = require('fs');
 const { setTimeout: sleep } = require('node:timers/promises');
@@ -10,6 +10,8 @@ const setupRoleReaction = require('./modules/roleReaction');
 const { checkLiveStatus } = require('./modules/twitchLiveChecker');
 const handleSocialCommand = require('./commands/social');
 const handleRulesDsCommand = require('./commands/rulesds');
+const { bootstrapConvogli, handleConvogliInteraction } = require('./modules/convogli');
+const { startReminders } = require('./scheduler/reminders');
 
 function loadForbiddenPatterns() {
     const rawPatterns = JSON.parse(fs.readFileSync(config.paths.forbiddenLinksFile, 'utf8'));
@@ -530,6 +532,16 @@ client.once('clientReady', async () => {
     await setupRoleReaction(client);
     await bootstrapPrivateVoiceChannels(client);
 
+    const hasConvogliChannels = Boolean(config.channels.inviti && config.channels.calendario);
+    const hasConvogliModeration = Boolean(config.ownerId || config.staffRoleId);
+
+    if (!hasConvogliChannels || !hasConvogliModeration) {
+        console.warn('Configurazione convogli incompleta: imposta CHANNEL_INVITI_ID, CHANNEL_CALENDARIO_ID e almeno uno tra OWNER_ID o STAFF_ROLE_ID.');
+    } else {
+        await bootstrapConvogli(client, config).catch(error => console.error('Errore bootstrap convogli:', error));
+        startReminders(client, config);
+    }
+
     if (!config.hourlyCleanupChannelId) {
         console.error('HOURLY_CLEANUP_CHANNEL_ID mancante nel file .env: pulizia oraria disattivata.');
     } else {
@@ -687,6 +699,24 @@ client.on('channelDelete', channel => {
     if (!privateVoiceChannels.has(channel.id)) return;
     privateVoiceChannels.delete(channel.id);
     clearPrivateVoiceCleanup(channel.id);
+});
+
+client.on('interactionCreate', async interaction => {
+    try {
+        const handled = await handleConvogliInteraction(interaction, client, config);
+        if (handled) return;
+    } catch (error) {
+        console.error('Errore gestione interaction convogli:', error);
+
+        if (interaction.isRepliable()) {
+            const payload = { content: `Errore: ${error.message || 'operazione non riuscita.'}`, flags: MessageFlags.Ephemeral };
+            if (interaction.deferred || interaction.replied) {
+                await interaction.followUp(payload).catch(() => null);
+            } else {
+                await interaction.reply(payload).catch(() => null);
+            }
+        }
+    }
 });
 
 client.on('messageCreate', async message => {
