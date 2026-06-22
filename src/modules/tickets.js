@@ -13,6 +13,7 @@ const {
 const TICKET_CREATE_BUTTON_ID = 'ticket_create';
 const TICKET_CLOSE_BUTTON_ID = 'ticket_close';
 const MAX_TRANSCRIPT_MESSAGES = 500;
+const DISCORD_SNOWFLAKE_PATTERN = /^\d{17,20}$/;
 
 function ensureTicketStore(config) {
     fs.mkdirSync(path.dirname(config.paths.ticketsFile), { recursive: true });
@@ -45,6 +46,34 @@ function saveTickets(config, store) {
     const tmpFile = `${config.paths.ticketsFile}.${process.pid}.tmp`;
     fs.writeFileSync(tmpFile, JSON.stringify(normalized, null, 2));
     fs.renameSync(tmpFile, config.paths.ticketsFile);
+}
+
+function isDiscordSnowflake(value) {
+    return typeof value === 'string' && DISCORD_SNOWFLAKE_PATTERN.test(value);
+}
+
+async function resolveStaffRoleId(guild, config) {
+    const candidates = [config.ticketStaffRoleId, config.staffRoleId].filter(isDiscordSnowflake);
+    for (const roleId of candidates) {
+        const role = guild.roles.cache.get(roleId) || await guild.roles.fetch(roleId).catch(() => null);
+        if (role) return role.id;
+        console.warn(`Ruolo staff ticket non trovato o non accessibile: ${roleId}`);
+    }
+    return null;
+}
+
+async function resolveTicketCategoryId(guild, config) {
+    if (!isDiscordSnowflake(config.ticketCategoryId)) return null;
+
+    const category = guild.channels.cache.get(config.ticketCategoryId)
+        || await guild.channels.fetch(config.ticketCategoryId).catch(() => null);
+
+    if (!category || category.type !== ChannelType.GuildCategory) {
+        console.warn(`Categoria ticket non trovata o non valida: ${config.ticketCategoryId}`);
+        return null;
+    }
+
+    return category.id;
 }
 
 function canManageTickets(member, config) {
@@ -148,9 +177,10 @@ async function createTicket(interaction, config) {
         saveTickets(config, store);
     }
 
-    const staffRoleId = config.ticketStaffRoleId || config.staffRoleId;
+    const staffRoleId = await resolveStaffRoleId(interaction.guild, config);
+    const categoryId = await resolveTicketCategoryId(interaction.guild, config);
     const overwrites = [
-        { id: interaction.guild.roles.everyone, deny: [PermissionFlagsBits.ViewChannel] },
+        { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
         { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles] }
     ];
 
@@ -161,7 +191,7 @@ async function createTicket(interaction, config) {
     const channel = await interaction.guild.channels.create({
         name: `ticket-${sanitizeChannelName(interaction.user.username)}`,
         type: ChannelType.GuildText,
-        parent: config.ticketCategoryId || null,
+        parent: categoryId,
         topic: `Ticket di ${interaction.user.tag} (${interaction.user.id})`,
         permissionOverwrites: overwrites,
         reason: `Ticket aperto da ${interaction.user.tag}`
@@ -275,6 +305,7 @@ async function handleTicketPanelCommand(client, message, config) {
 }
 
 module.exports = {
+    isDiscordSnowflake,
     bootstrapTickets,
     handleTicketInteraction,
     handleTicketPanelCommand,
