@@ -11,6 +11,7 @@ const { checkLiveStatus } = require('./modules/twitchLiveChecker');
 const handleSocialCommand = require('./commands/social');
 const handleRulesDsCommand = require('./commands/rulesds');
 const { bootstrapConvogli, handleConvogliInteraction } = require('./modules/convogli');
+const { bootstrapTickets, handleTicketInteraction, handleTicketPanelCommand } = require('./modules/tickets');
 const { startReminders } = require('./scheduler/reminders');
 
 function loadForbiddenPatterns() {
@@ -531,6 +532,7 @@ client.once('clientReady', async () => {
 
     await setupRoleReaction(client);
     await bootstrapPrivateVoiceChannels(client);
+    await bootstrapTickets(client, config);
 
     const hasConvogliChannels = Boolean(config.channels.inviti && config.channels.calendario);
     const hasConvogliModeration = Boolean(config.ownerId || config.staffRoleId);
@@ -703,6 +705,9 @@ client.on('channelDelete', channel => {
 
 client.on('interactionCreate', async interaction => {
     try {
+        const ticketHandled = await handleTicketInteraction(interaction, config);
+        if (ticketHandled) return;
+
         const handled = await handleConvogliInteraction(interaction, client, config);
         if (handled) return;
     } catch (error) {
@@ -782,6 +787,10 @@ client.on('messageCreate', async message => {
 
         if (message.content === '!creavocale') {
             return createPrivateVoiceChannel(message);
+        }
+
+        if (message.content === '!ticketpanel') {
+            return handleTicketPanelCommand(client, message, config);
         }
     } catch (err) {
         console.error('Errore gestione messageCreate:', err);
