@@ -14,7 +14,7 @@ const TICKET_CREATE_BUTTON_ID = 'ticket_create';
 const TICKET_CLOSE_BUTTON_ID = 'ticket_close';
 const MAX_TRANSCRIPT_MESSAGES = 500;
 const DISCORD_SNOWFLAKE_PATTERN = /^\d{17,20}$/;
-const STAFF_IN_TRAINING_ROLE_ID = '1536374848098402366';
+const STAFF_IN_TRAINING_ROLE_ID = '';
 
 function ensureTicketStore(config) {
     fs.mkdirSync(path.dirname(config.paths.ticketsFile), { recursive: true });
