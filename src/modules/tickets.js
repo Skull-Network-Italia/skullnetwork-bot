@@ -14,6 +14,7 @@ const TICKET_CREATE_BUTTON_ID = 'ticket_create';
 const TICKET_CLOSE_BUTTON_ID = 'ticket_close';
 const MAX_TRANSCRIPT_MESSAGES = 500;
 const DISCORD_SNOWFLAKE_PATTERN = /^\d{17,20}$/;
+const STAFF_IN_TRAINING_ROLE_ID = '';
 
 function ensureTicketStore(config) {
     fs.mkdirSync(path.dirname(config.paths.ticketsFile), { recursive: true });
@@ -52,14 +53,22 @@ function isDiscordSnowflake(value) {
     return typeof value === 'string' && DISCORD_SNOWFLAKE_PATTERN.test(value);
 }
 
-async function resolveStaffRoleId(guild, config) {
-    const candidates = [config.ticketStaffRoleId, config.staffRoleId].filter(isDiscordSnowflake);
-    for (const roleId of candidates) {
+async function resolveTicketStaffRoleIds(guild, config) {
+    const candidates = [config.ticketStaffRoleId, config.staffRoleId, STAFF_IN_TRAINING_ROLE_ID]
+        .filter(isDiscordSnowflake);
+    const uniqueCandidates = [...new Set(candidates)];
+    const roleIds = [];
+
+    for (const roleId of uniqueCandidates) {
         const role = guild.roles.cache.get(roleId) || await guild.roles.fetch(roleId).catch(() => null);
-        if (role) return role.id;
-        console.warn(`Ruolo staff ticket non trovato o non accessibile: ${roleId}`);
+        if (role) {
+            roleIds.push(role.id);
+        } else {
+            console.warn(`Ruolo staff ticket non trovato o non accessibile: ${roleId}`);
+        }
     }
-    return null;
+
+    return roleIds;
 }
 
 async function resolveTicketCategoryId(guild, config) {
@@ -81,6 +90,7 @@ function canManageTickets(member, config) {
     if (config.ownerId && member.id === config.ownerId) return true;
     if (config.ticketStaffRoleId && member.roles?.cache?.has(config.ticketStaffRoleId)) return true;
     if (config.staffRoleId && member.roles?.cache?.has(config.staffRoleId)) return true;
+    if (member.roles?.cache?.has(STAFF_IN_TRAINING_ROLE_ID)) return true;
     return member.permissions?.has(PermissionFlagsBits.ManageChannels) || false;
 }
 
@@ -177,15 +187,23 @@ async function createTicket(interaction, config) {
         saveTickets(config, store);
     }
 
-    const staffRoleId = await resolveStaffRoleId(interaction.guild, config);
+    const staffRoleIds = await resolveTicketStaffRoleIds(interaction.guild, config);
     const categoryId = await resolveTicketCategoryId(interaction.guild, config);
     const overwrites = [
         { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
         { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles] }
     ];
 
-    if (staffRoleId) {
-        overwrites.push({ id: staffRoleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageMessages] });
+    for (const staffRoleId of staffRoleIds) {
+        overwrites.push({
+            id: staffRoleId,
+            allow: [
+                PermissionFlagsBits.ViewChannel,
+                PermissionFlagsBits.SendMessages,
+                PermissionFlagsBits.ReadMessageHistory,
+                PermissionFlagsBits.ManageMessages
+            ]
+        });
     }
 
     const channel = await interaction.guild.channels.create({
@@ -220,7 +238,13 @@ async function createTicket(interaction, config) {
         .setColor(0x2ecc71)
         .addFields({ name: 'Utente', value: `${interaction.user.tag} (${interaction.user.id})` });
 
-    await channel.send({ content: `${interaction.user}${staffRoleId ? ` <@&${staffRoleId}>` : ''}`, embeds: [embed], components: buildCloseButton(), allowedMentions: { users: [interaction.user.id], roles: staffRoleId ? [staffRoleId] : [] } });
+    const staffMentions = staffRoleIds.map(roleId => `<@&${roleId}>`).join(' ');
+    await channel.send({
+        content: `${interaction.user}${staffMentions ? ` ${staffMentions}` : ''}`,
+        embeds: [embed],
+        components: buildCloseButton(),
+        allowedMentions: { users: [interaction.user.id], roles: staffRoleIds }
+    });
     return sendEphemeral(interaction, `Ticket creato: ${channel}.`);
 }
 
