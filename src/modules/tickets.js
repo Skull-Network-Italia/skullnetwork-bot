@@ -14,7 +14,7 @@ const TICKET_CREATE_BUTTON_ID = 'ticket_create';
 const TICKET_CLOSE_BUTTON_ID = 'ticket_close';
 const MAX_TRANSCRIPT_MESSAGES = 500;
 const DISCORD_SNOWFLAKE_PATTERN = /^\d{17,20}$/;
-const STAFF_IN_TRAINING_ROLE_ID = '';
+const TRIAL_SUPPORT_AGENT_ROLE_ID = '';
 
 function ensureTicketStore(config) {
     fs.mkdirSync(path.dirname(config.paths.ticketsFile), { recursive: true });
@@ -54,7 +54,7 @@ function isDiscordSnowflake(value) {
 }
 
 async function resolveTicketStaffRoleIds(guild, config) {
-    const candidates = [config.ticketStaffRoleId, config.staffRoleId, STAFF_IN_TRAINING_ROLE_ID]
+    const candidates = [config.ticketStaffRoleId, config.staffRoleId, config.staffInTrainingRoleId, TRIAL_SUPPORT_AGENT_ROLE_ID]
         .filter(isDiscordSnowflake);
     const uniqueCandidates = [...new Set(candidates)];
     const roleIds = [];
@@ -90,7 +90,8 @@ function canManageTickets(member, config) {
     if (config.ownerId && member.id === config.ownerId) return true;
     if (config.ticketStaffRoleId && member.roles?.cache?.has(config.ticketStaffRoleId)) return true;
     if (config.staffRoleId && member.roles?.cache?.has(config.staffRoleId)) return true;
-    if (member.roles?.cache?.has(STAFF_IN_TRAINING_ROLE_ID)) return true;
+    if (config.staffInTrainingRoleId && member.roles?.cache?.has(config.staffInTrainingRoleId)) return true;
+    if (member.roles?.cache?.has(TRIAL_SUPPORT_AGENT_ROLE_ID)) return true;
     return member.permissions?.has(PermissionFlagsBits.ManageChannels) || false;
 }
 
