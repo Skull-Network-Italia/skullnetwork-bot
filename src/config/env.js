@@ -27,6 +27,7 @@ module.exports = {
     ticketCategoryId: cleanString(process.env.TICKET_CATEGORY_ID),
     ticketLogChannelId: cleanString(process.env.TICKET_LOG_CHANNEL_ID) || cleanString(process.env.LOG_CHANNEL_ID),
     ticketStaffRoleId: cleanString(process.env.TICKET_STAFF_ROLE_ID),
+    staffInTrainingRoleId: cleanString(process.env.STAFF_IN_TRAINING_ROLE_ID),
     privateVoiceInactivityMs: toInt(process.env.PRIVATE_VOICE_INACTIVITY_MS, 5 * 60 * 1000),
     roleReactionChannelId: cleanString(process.env.ROLE_REACTION_CHANNEL_ID),
     dailyGreetingChannelId: cleanString(process.env.DAILY_GREETING_CHANNEL_ID),
