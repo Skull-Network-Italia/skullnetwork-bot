@@ -13,6 +13,7 @@ const handleRulesDsCommand = require('./commands/rulesds');
 const { bootstrapConvogli, handleConvogliInteraction } = require('./modules/convogli');
 const { bootstrapTickets, handleTicketInteraction, handleTicketPanelCommand } = require('./modules/tickets');
 const { startReminders } = require('./scheduler/reminders');
+const { createLanguageModerator } = require('./modules/languageModeration');
 
 function loadForbiddenPatterns() {
     const rawPatterns = JSON.parse(fs.readFileSync(config.paths.forbiddenLinksFile, 'utf8'));
@@ -30,6 +31,7 @@ function loadForbiddenPatterns() {
 }
 
 const forbiddenPatterns = loadForbiddenPatterns();
+const moderateLanguage = createLanguageModerator(config);
 
 let userViolations = {};
 let bans = {};
@@ -728,6 +730,8 @@ client.on('messageCreate', async message => {
     if (message.author.bot || !message.guild) return;
 
     try {
+        if (await moderateLanguage(message, client)) return;
+
         const profile = getOrCreateRankProfile(message.author.id);
         profile.lastActivityAt = Date.now();
         persistRankData();

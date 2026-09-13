@@ -10,7 +10,7 @@
   "scripts": {
     "start": "node index.js",
     "check": "node --check index.js && node --check src/index.js",
-    "test": "npm run check"
+    "test": "npm run check && node --test test/*.test.js"
   },
   "keywords": [],
   "author": "Bitpredator",
