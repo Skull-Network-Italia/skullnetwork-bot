@@ -38,7 +38,7 @@ module.exports = {
     privateVoiceInactivityMs: toInt(process.env.PRIVATE_VOICE_INACTIVITY_MS, 5 * 60 * 1000),
     // Il pannello delle reazioni è nel canale della community; la variabile
     // d'ambiente resta disponibile per installazioni che usano un altro canale.
-    roleReactionChannelId: cleanString(process.env.ROLE_REACTION_CHANNEL_ID) || '1388581780323565700',
+    roleReactionChannelId: cleanString(process.env.ROLE_REACTION_CHANNEL_ID) || '',
     dailyGreetingChannelId: cleanString(process.env.DAILY_GREETING_CHANNEL_ID),
     hourlyCleanupChannelId: cleanString(process.env.HOURLY_CLEANUP_CHANNEL_ID),
     channels: {
@@ -58,8 +58,8 @@ module.exports = {
         '🎮': process.env.ROLE_R6_ID,
         '🛠️': process.env.ROLE_MINECRAFT_ID,
         '💀': process.env.ROLE_FIVEM_ID,
-        '🇧🇬': cleanString(process.env.ROLE_BULGARIAN_COMMUNITY_ID) || '1547905152672075847',
-        '🇩🇪': cleanString(process.env.ROLE_GERMAN_COMMUNITY_ID) || '1548634721393582141'
+        '🇧🇬': cleanString(process.env.ROLE_BULGARIAN_COMMUNITY_ID) || '',
+        '🇩🇪': cleanString(process.env.ROLE_GERMAN_COMMUNITY_ID) || ''
     },
     twitch: {
         clientId: process.env.TWITCH_CLIENT_ID,
