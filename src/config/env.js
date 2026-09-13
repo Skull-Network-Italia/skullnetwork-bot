@@ -36,7 +36,9 @@ module.exports = {
     ticketStaffRoleId: cleanString(process.env.TICKET_STAFF_ROLE_ID),
     staffInTrainingRoleId: cleanString(process.env.STAFF_IN_TRAINING_ROLE_ID),
     privateVoiceInactivityMs: toInt(process.env.PRIVATE_VOICE_INACTIVITY_MS, 5 * 60 * 1000),
-    roleReactionChannelId: cleanString(process.env.ROLE_REACTION_CHANNEL_ID),
+    // Il pannello delle reazioni è nel canale della community; la variabile
+    // d'ambiente resta disponibile per installazioni che usano un altro canale.
+    roleReactionChannelId: cleanString(process.env.ROLE_REACTION_CHANNEL_ID) || '',
     dailyGreetingChannelId: cleanString(process.env.DAILY_GREETING_CHANNEL_ID),
     hourlyCleanupChannelId: cleanString(process.env.HOURLY_CLEANUP_CHANNEL_ID),
     channels: {
@@ -55,7 +57,9 @@ module.exports = {
         '✈️': process.env.ROLE_FLIGHT_SIM_ID,
         '🎮': process.env.ROLE_R6_ID,
         '🛠️': process.env.ROLE_MINECRAFT_ID,
-        '💀': process.env.ROLE_FIVEM_ID
+        '💀': process.env.ROLE_FIVEM_ID,
+        '🇧🇬': cleanString(process.env.ROLE_BULGARIAN_COMMUNITY_ID) || '',
+        '🇩🇪': cleanString(process.env.ROLE_GERMAN_COMMUNITY_ID) || ''
     },
     twitch: {
         clientId: process.env.TWITCH_CLIENT_ID,
