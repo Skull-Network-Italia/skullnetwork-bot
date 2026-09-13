@@ -3,6 +3,25 @@ const { EmbedBuilder } = require('discord.js');
 
 const config = require('../config/env');
 
+function buildRoleReactionEmbed() {
+    return new EmbedBuilder()
+        .setTitle('🎮 Seleziona i tuoi giochi e le tue community')
+        .setDescription(`
+Clicca per ricevere o rimuovere il ruolo:
+🚛 - ETS2 / ATS
+🚜 - FS22
+⚓ - World of Warships
+🚗 - Assetto Corsa
+✈️ - Microsoft Flight Simulator
+🎮 - Rainbow Six Siege
+🛠️ - Minecraft
+💀 - FiveM
+🇧🇬 - Bulgarian Community
+🇩🇪 - German Community
+        `)
+        .setColor(0x2F3136);
+}
+
 async function setupRoleReaction(client) {
     const channelId = config.roleReactionChannelId;
     const rolesMap = Object.fromEntries(
@@ -10,16 +29,28 @@ async function setupRoleReaction(client) {
     );
 
     if (!channelId || Object.keys(rolesMap).length === 0) {
-        console.warn('⚠️ Role reaction non configurata: ROLE_REACTION_CHANNEL_ID o ruoli mancanti nel .env.');
+        console.warn('⚠️ Role reaction non configurata: canale o ruoli mancanti.');
         return;
     }
 
     let savedData = {};
     if (fs.existsSync(config.paths.reactionMessageFile)) {
-        savedData = JSON.parse(fs.readFileSync(config.paths.reactionMessageFile, 'utf8'));
+        try {
+            savedData = JSON.parse(fs.readFileSync(config.paths.reactionMessageFile, 'utf8'));
+        } catch (error) {
+            console.warn('⚠️ File del messaggio role reaction non valido, ne verrà creato uno nuovo.', error.message);
+        }
     }
 
-    const channel = await client.channels.fetch(channelId);
+    const channel = await client.channels.fetch(channelId).catch(error => {
+        console.error(`Errore recupero canale role reaction ${channelId}:`, error);
+        return null;
+    });
+    if (!channel?.isTextBased() || !channel.messages) {
+        console.error(`Canale role reaction ${channelId} non trovato o non adatto ai messaggi.`);
+        return;
+    }
+
     let message;
 
     if (savedData.messageId) {
@@ -32,28 +63,16 @@ async function setupRoleReaction(client) {
     }
 
     if (!message) {
-        const embed = new EmbedBuilder()
-            .setTitle('🎮 Seleziona i tuoi giochi preferiti')
-            .setDescription(`
-Clicca per ricevere il ruolo:
-🚛 - ETS2 / ATS
-🚜 - FS22
-⚓ - World of Warships
-🚗 - Assetto Corsa
-✈️ - Microsoft Flight Simulator
-🎮 - Rainbow Six Siege
-🛠️ - Minecraft
-💀 - FiveM
-            `)
-            .setColor(0x2F3136);
-
-        message = await channel.send({ embeds: [embed] });
-            fs.writeFileSync(config.paths.reactionMessageFile, JSON.stringify({ messageId: message.id }, null, 2));
-
-        for (const emoji of Object.keys(rolesMap)) {
-            await message.react(emoji);
-        }
+        message = await channel.send({ embeds: [buildRoleReactionEmbed()] });
+        fs.writeFileSync(config.paths.reactionMessageFile, JSON.stringify({ messageId: message.id }, null, 2));
         console.log('✅ Nuovo messaggio role reaction creato e salvato.');
+    } else {
+        await message.edit({ embeds: [buildRoleReactionEmbed()] });
+    }
+
+    for (const emoji of Object.keys(rolesMap)) {
+        const alreadyPresent = message.reactions.cache.some(reaction => reaction.emoji.name === emoji);
+        if (!alreadyPresent) await message.react(emoji);
     }
 
     async function hydrateReaction(reaction) {
