@@ -8,6 +8,13 @@ function toInt(value, fallback) {
     return Number.isNaN(parsed) ? fallback : parsed;
 }
 
+function toBoolean(value, fallback) {
+    if (typeof value !== 'string') return fallback;
+    if (value.trim().toLowerCase() === 'true') return true;
+    if (value.trim().toLowerCase() === 'false') return false;
+    return fallback;
+}
+
 function cleanString(value) {
     if (typeof value !== 'string') return undefined;
     const trimmed = value.trim();
@@ -55,6 +62,11 @@ module.exports = {
         clientSecret: process.env.TWITCH_CLIENT_SECRET,
         streamers: (process.env.TWITCH_STREAMERS || '').split(',').map(s => s.trim()).filter(Boolean),
         discordChannelId: process.env.TWITCH_DISCORD_CHANNEL
+    },
+    moderation: {
+        enabled: toBoolean(process.env.LANGUAGE_MODERATION_ENABLED, true),
+        warningsBeforeTimeout: Math.min(10, Math.max(1, toInt(process.env.LANGUAGE_MODERATION_WARNINGS_BEFORE_TIMEOUT, 3))),
+        timeoutMs: Math.min(28 * 24 * 60 * 60 * 1000, Math.max(60 * 1000, toInt(process.env.LANGUAGE_MODERATION_TIMEOUT_MS, 60 * 60 * 1000)))
     },
     rank: {
         levelUpVoiceMs: toInt(process.env.LEVEL_UP_VOICE_MS, 24 * 60 * 60 * 1000),
